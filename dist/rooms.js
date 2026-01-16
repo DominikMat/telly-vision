@@ -1,0 +1,233 @@
+export var Rooms;
+(function (Rooms) {
+    Rooms[Rooms["None"] = 0] = "None";
+    Rooms[Rooms["Livi"] = 1] = "Livi";
+    Rooms[Rooms["Kitc"] = 2] = "Kitc";
+    Rooms[Rooms["Corr"] = 3] = "Corr";
+    Rooms[Rooms["Loo1"] = 4] = "Loo1";
+    Rooms[Rooms["Loo2"] = 5] = "Loo2";
+    Rooms[Rooms["Bed1"] = 6] = "Bed1";
+    Rooms[Rooms["Bed2"] = 7] = "Bed2";
+    Rooms[Rooms["Bed3"] = 8] = "Bed3";
+})(Rooms || (Rooms = {}));
+export const roomSize = 125;
+const doorSize = 0.2;
+const doorPosition = 0.5;
+const wallWidth = 5;
+const roomColours = [
+    /* None */ 'transparent',
+    /* Living Room */ 'pink',
+    /* Kitchen */ 'blue',
+    /* Corridor  */ 'yellow',
+    /* Loo 1*/ 'skyblue',
+    /* Loo 2*/ 'skyblue',
+    /* Bedroom 1 */ 'red',
+    /* Bedroom 2 */ 'purple',
+    /* Bedroom 3 */ 'orange',
+];
+export class Point {
+    x = 0;
+    y = 0;
+    constructor(x = 0, y = 0) {
+        this.x = x;
+        this.y = y;
+    }
+}
+class Line {
+    x1;
+    y1;
+    x2;
+    y2;
+    constructor(x1, y1, x2, y2) {
+        this.x1 = x1;
+        this.y1 = y1;
+        this.x2 = x2;
+        this.y2 = y2;
+    }
+    // Returns the distance 't' if hit, or null if miss
+    getIntersection(rayOriginX, rayOriginY, rayDirX, rayDirY) {
+        // Wall Vector
+        const v1x = this.x1;
+        const v1y = this.y1;
+        const v2x = this.x2;
+        const v2y = this.y2;
+        const wallDirX = v2x - v1x;
+        const wallDirY = v2y - v1y;
+        // Denominator (Cross product of Ray Direction and Wall Direction)
+        const den = rayDirX * wallDirY - rayDirY * wallDirX;
+        // If den is 0, lines are parallel
+        if (den === 0)
+            return null;
+        const diffX = v1x - rayOriginX;
+        const diffY = v1y - rayOriginY;
+        // t = distance along the ray to the intersection
+        const t = (diffX * wallDirY - diffY * wallDirX) / den;
+        // u = position along the wall (0 to 1) where intersection occurs
+        const u = (diffX * rayDirY - diffY * rayDirX) / den;
+        // CHECK 1: t > 0 means the wall is in front of the ray
+        // CHECK 2: u >= 0 && u <= 1 means we hit the actual segment, not the infinite line
+        if (t > 0 && u >= 0 && u <= 1) {
+            return {
+                t: t,
+                x: rayOriginX + t * rayDirX,
+                y: rayOriginY + t * rayDirY
+            };
+        }
+        return null;
+    }
+}
+export class Apartment {
+    /* Variables */
+    roomPlan;
+    doorsHorizontal;
+    doorsVertical;
+    apartHeight = 0;
+    apartWidth = 0;
+    positionOriginX = 0;
+    positionOriginY = 0;
+    walls = [];
+    /* Constructor */
+    constructor(roomPlan, doorsHorz, doorsVert) {
+        this.roomPlan = roomPlan;
+        this.doorsHorizontal = doorsHorz;
+        this.doorsVertical = doorsVert;
+        this.apartHeight = roomPlan.length;
+        this.apartWidth = roomPlan[0]?.length ? roomPlan[0]?.length : 0;
+    }
+    /* Wall collision */
+    getRaycastCollisionPoint(originX, originY, angle) {
+        // 1. Calculate Unit Vector for the Ray (Always stable, unlike tan)
+        const rayDirX = Math.cos(angle);
+        const rayDirY = Math.sin(angle);
+        let closestT = Infinity;
+        let closestPoint = new Point(originX + rayDirX * 10000, originY + rayDirY * 10000); // Default far away
+        // 2. Check every wall
+        for (const wall of this.walls) {
+            const hit = wall.getIntersection(originX, originY, rayDirX, rayDirY);
+            // 3. Keep the smallest 't' (closest distance)
+            if (hit && hit.t < closestT) {
+                closestT = hit.t;
+                closestPoint.x = hit.x;
+                closestPoint.y = hit.y;
+            }
+        }
+        return closestPoint;
+    }
+    /* Wall generation */
+    generateWallLines() {
+        if (this.roomPlan === undefined || this.roomPlan.length == 0)
+            return;
+        this.walls = [];
+        for (let x = 0; x < this.apartWidth; x++) {
+            for (let y = 0; y < this.apartHeight; y++) {
+                let roomX = this.positionOriginX + x * roomSize;
+                let roomY = this.positionOriginY + y * roomSize;
+                let currentRoom = this.roomPlan[y]?.[x];
+                if (currentRoom !== undefined && currentRoom != Rooms.None) {
+                    if (x == 0 || this.roomPlan[y]?.[x - 1] != currentRoom) {
+                        this.addNewWall(roomX, roomY, roomX, roomY + roomSize, this.doorsVertical[y]?.[x]);
+                    }
+                    if (x == this.apartWidth - 1 || this.roomPlan[y]?.[x + 1] != currentRoom) {
+                        this.addNewWall(roomX + roomSize, roomY, roomX + roomSize, roomY + roomSize, this.doorsVertical[y]?.[x + 1]);
+                    }
+                    if (y == 0 || this.roomPlan[y - 1]?.[x] != currentRoom) {
+                        this.addNewWall(roomX, roomY, roomX + roomSize, roomY, this.doorsHorizontal[y]?.[x]);
+                    }
+                    if (y == this.apartHeight - 1 || this.roomPlan[y + 1]?.[x] != currentRoom) {
+                        this.addNewWall(roomX, roomY + roomSize, roomX + roomSize, roomY + roomSize, this.doorsHorizontal[y + 1]?.[x]);
+                    }
+                }
+            }
+        }
+    }
+    addNewWall(x1, y1, x2, y2, hasDoor) {
+        const doorStart = Math.max(doorPosition - doorSize / 2, 0);
+        const doorEnd = Math.min(doorPosition + doorSize / 2, 1.0);
+        if (hasDoor ? hasDoor == 1 : false) {
+            this.walls.push(new Line(x1, y1, x1 * (1 - doorStart) + x2 * doorStart, y1 * (1 - doorStart) + y2 * doorStart));
+            this.walls.push(new Line(x1 * (1 - doorEnd) + x2 * doorEnd, y1 * (1 - doorEnd) + y2 * doorEnd, x2, y2));
+        }
+        else {
+            this.walls.push(new Line(x1, y1, x2, y2));
+        }
+    }
+    /* Render functions */
+    drawRooms(ctx, width, height, greyscale) {
+        if (!ctx)
+            return;
+        if (this.roomPlan === undefined || this.roomPlan.length == 0)
+            return;
+        this.positionOriginX = width / 2 - (this.apartWidth / 2) * roomSize;
+        this.positionOriginY = height / 2 - (this.apartHeight / 2) * roomSize;
+        for (let x = 0; x < this.apartWidth; x++) {
+            for (let y = 0; y < this.apartHeight; y++) {
+                /* Draw floor */
+                let roomX = this.positionOriginX + x * roomSize;
+                let roomY = this.positionOriginY + y * roomSize;
+                ctx.beginPath();
+                ctx.rect(roomX, roomY, roomSize * 1.01, roomSize * 1.01);
+                let currentRoom = this.roomPlan[y]?.[x];
+                let colour = 'pink';
+                if (currentRoom == undefined || currentRoom == Rooms.None)
+                    colour = 'transparent';
+                else if (greyscale)
+                    colour = 'grey';
+                else if (roomColours[currentRoom])
+                    colour = roomColours[currentRoom];
+                ctx.fillStyle = colour;
+                ctx.fill();
+            }
+        }
+    }
+    drawWalls(ctx) {
+        if (!ctx)
+            return;
+        if (this.walls.length == 0)
+            this.generateWallLines();
+        ctx.lineWidth = wallWidth;
+        ctx.strokeStyle = 'black';
+        /* Draw Walls */
+        this.walls.forEach(line => {
+            // fix wall corners
+            let x1 = line.x1;
+            let y1 = line.y1;
+            let x2 = line.x2;
+            let y2 = line.y2;
+            if (y1 == y2) {
+                x1 -= wallWidth / 2;
+                x2 += wallWidth / 2;
+            }
+            if (x1 == x2) {
+                y1 -= wallWidth / 2;
+                y2 += wallWidth / 2;
+            }
+            // draw line
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        });
+    }
+}
+/* Apartment 1 configuration */
+const apartmentRoomPlan1 = [
+    [Rooms.Kitc, Rooms.Kitc, Rooms.Corr, Rooms.None],
+    [Rooms.Bed1, Rooms.Bed1, Rooms.Corr, Rooms.None],
+    [Rooms.Livi, Rooms.Livi, Rooms.Corr, Rooms.Loo1],
+    [Rooms.Livi, Rooms.Livi, Rooms.Corr, Rooms.Loo1],
+];
+const apartmentDoorsH1 = [
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 1, 0],
+];
+const apartmentDoorsV1 = [
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 0, 1, 0],
+    [0, 0, 1, 0, 0],
+];
+export let apartment = new Apartment(apartmentRoomPlan1, apartmentDoorsH1, apartmentDoorsV1);
+//# sourceMappingURL=rooms.js.map
