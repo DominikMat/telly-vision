@@ -1,4 +1,4 @@
-import { apartment, Point } from './rooms.js'
+import { apartment, ObjectType, Point } from './rooms.js'
 
 /* Application configuration */
 const canvasElement: HTMLCanvasElement | null = document.querySelector('canvas');
@@ -9,11 +9,55 @@ const deltaTime_ms = 1000 / targetFps
 let ctx: CanvasRenderingContext2D | null | undefined = canvasElement?.getContext('2d')
 let width = window.innerWidth
 let height = window.innerHeight
-let renderParamsChanged = true
+let raycastParamsChanged = true
 
 /* Raycast */
 let raycastOriginX = 0
 let raycastOriginY = 0
+
+/* Mouse */
+let mouseX = 0
+let mouseY = 0
+
+/* icons */
+const iconPanelWidth = 100
+const iconPanelXPosPercent = 0.15
+const iconPanelHeightPercent = 0.5
+const iconSize = iconPanelWidth * 0.8
+const iconPanelXMiddle = width*iconPanelXPosPercent
+function getIconPos(i: number) { return new Point(iconPanelXMiddle-iconSize/2, height*iconPanelHeightPercent/2+i*iconSize) }
+function getIconAtPos(x:number, y:number) { 
+    if (x < iconPanelXMiddle-iconPanelWidth/2 || x > iconPanelXMiddle+iconPanelWidth/2) return -1
+    let yStart = (1-iconPanelHeightPercent)/2*height
+    if (y < (1-iconPanelHeightPercent)/2*height || y > yStart + icons.length*iconSize) return -1
+    return Math.floor((y - yStart) / iconSize)
+}
+
+const cursorIconPreviewAlpha = 0.33
+class Icon {
+    name: string
+    path: string
+    loaded: boolean
+    displayImg: CanvasImageSource
+    tag: ObjectType
+
+    constructor(_name:string, _path:string, _tag:ObjectType) {
+        this.name = _name
+        this.path = _path
+        this.tag = _tag
+        this.loaded = false
+        
+        this.displayImg = new Image()
+        this.displayImg.src = _path
+        this.displayImg.onload = () => { this.loaded = true; };
+        this.displayImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+    }
+}
+
+const icons: Array<Icon> = [ // has to match orcer in rooms.ts enum ObjectType
+    new Icon('Mirror', './icons/mirrorIcon.png', ObjectType.Mirror)
+]
+let selectedIcon = -1
 
 // your init logic here
 function init() {
@@ -28,34 +72,81 @@ function loop() {
 
 // your render logic here
 function draw() {
-    if (!ctx || !renderParamsChanged) return
-    renderParamsChanged = false
+    if (!ctx) return
 
     // clear canvas
-    ctx.clearRect(0,0,width,height)
-
-    // draw grey rooms
-    apartment.drawRooms(ctx, width, height, true) 
-
-    // make hole with raycast
-    ctx.save()
-    ctx.globalCompositeOperation = 'destination-out';
-    drawRaycast(ctx, raycastOriginX, raycastOriginY)
-    ctx.save()
-
-    // fill empty space with coloured rooms
-    ctx.restore()
-    ctx.globalCompositeOperation = 'destination-over';
-    apartment.drawRooms(ctx, width, height, false)
-    ctx.restore()
-
-    // draw apartmetn walls
-    apartment.drawWalls(ctx)
     
-    ctx.beginPath();
-    ctx.arc(raycastOriginX, raycastOriginY, 10, 0, 2*Math.PI);
-    ctx.fillStyle = 'orange';
-    ctx.fill();
+    //if (raycastParamsChanged) {
+        ctx.clearRect(0,0,width,height)
+
+        // draw grey rooms
+        // apartment.drawRooms(ctx, width, height, true) 
+    
+        // make hole with raycast
+        // ctx.save()
+        // // ctx.globalCompositeOperation = 'destination-out';
+        // drawRaycast(ctx, raycastOriginX, raycastOriginY)
+        // ctx.save()
+    
+        // fill empty space with coloured rooms
+        ctx.restore()
+        // ctx.globalCompositeOperation = 'destination-over';
+        apartment.drawRooms(ctx, width, height, false)
+        ctx.restore()
+
+        // raycast on top of all
+        ctx.save()
+        // ctx.globalCompositeOperation = 'destination-out';
+        drawRaycast(ctx, raycastOriginX, raycastOriginY)
+        ctx.save()
+    
+        // draw apartmetn walls
+        apartment.drawWalls(ctx)
+        
+        ctx.beginPath();
+        ctx.arc(raycastOriginX, raycastOriginY, 10, 0, 2*Math.PI);
+        ctx.fillStyle = 'orange';
+        ctx.fill();
+    //}
+
+    /* Icon Panel */
+    //ctx.clearRect(0,0,iconPanelXMiddle+iconPanelWidth/2,height)
+    ctx.beginPath()
+    ctx.arc(iconPanelXMiddle, iconPanelHeightPercent/2*height, iconPanelWidth/2, Math.PI, 2*Math.PI)
+    ctx.lineTo(iconPanelXMiddle+iconPanelWidth/2, (1-iconPanelHeightPercent/2)*height)
+    ctx.arc(iconPanelXMiddle, (1-iconPanelHeightPercent/2)*height, iconPanelWidth/2, 0, Math.PI)
+    ctx.lineTo(iconPanelXMiddle-iconPanelWidth/2, iconPanelHeightPercent/2*height)
+    ctx.fillStyle = '#00000069'
+    ctx.fill()
+
+    /* draw icons */
+    icons.forEach((icon,i) => {
+        if (icon.loaded) {
+            let iconPos = getIconPos(i)
+            ctx.drawImage(icon.displayImg, iconPos.x, iconPos.y, iconSize, iconSize)
+
+            // draw outline if selected
+            if (i==selectedIcon) { 
+                ctx.beginPath()
+                ctx.rect(iconPos.x,iconPos.y,iconSize,iconSize)
+                ctx.strokeStyle = 'white'
+                ctx.lineWidth = 2
+                ctx.stroke()
+            }
+        }
+    });
+
+    /* draw mouse icon preview */
+    if (selectedIcon != -1) {
+        const icon = icons[selectedIcon]
+        if (icon && icon.loaded) {
+            ctx.globalAlpha = cursorIconPreviewAlpha
+            ctx.drawImage(icon.displayImg, mouseX, mouseY, iconSize, iconSize)
+            ctx.globalAlpha = 1.0
+        }
+    }
+
+    raycastParamsChanged = false
 }
 
 function drawRaycast(ctx: CanvasRenderingContext2D, x: number, y: number) {
@@ -69,28 +160,59 @@ function drawRaycast(ctx: CanvasRenderingContext2D, x: number, y: number) {
     ctx.beginPath();
 
     for (let angle = 0; angle <= 2 * Math.PI; angle += angularStep) {
-        let p = apartment.getRaycastCollisionPoint(x, y, angle);
-        ctx.lineTo(p.x, p.y);
+        let collisionPoints = apartment.getRaycastCollisionPoint(x, y, angle);
+        collisionPoints.forEach(p => {
+            ctx.lineTo(p.x, p.y);
+        });
+
+        if (collisionPoints.length > 1) {
+            console.log(collisionPoints)
+        }
+        //if (collisionPoints.length > 1 && collisionPoints[0]) 
+        ctx.moveTo(x,y)
     }
     
-    let closeShapePoint = apartment.getRaycastCollisionPoint(x, y, 0);
-    ctx.lineTo(closeShapePoint.x, closeShapePoint.y);
-
-    
-    // Close the shape back to center    
-    ctx.fillStyle = 'rgba(255, 255, 2555, 1)' // Nice "light" color
-    ctx.fill()
-    
-    // Optional: Draw the perimeter line
     ctx.strokeStyle = 'white'
     ctx.lineWidth = 3
     ctx.stroke()
+        
+    
+    // let closeShapePoint = apartment.getRaycastCollisionPoint(x, y, 0);
+    // ctx.lineTo(closeShapePoint.x, closeShapePoint.y);
+    // Close the shape back to center    
+    // ctx.fillStyle = 'rgba(255, 255, 2555, 1)' // Nice "light" color
+    // ctx.fill()
+    
+    // Optional: Draw the perimeter line
+    // ctx.strokeStyle = 'white'
+    // ctx.lineWidth = 3
+    // ctx.stroke()
 }
 
-function mouseclick(e: PointerEvent) {
-    raycastOriginX = e.offsetX
-    raycastOriginY = e.offsetY
-    renderParamsChanged = true
+function mouseClick(e: PointerEvent) {
+    mouseX = e.offsetX
+    mouseY = e.offsetY
+
+    let iconAtPos = getIconAtPos(mouseX, mouseY)
+    if (iconAtPos != -1) { selectedIcon = iconAtPos; return; }
+
+    if (selectedIcon == -1) {
+        raycastOriginX = mouseX
+        raycastOriginY = mouseY
+        raycastParamsChanged = true
+    } else {
+        const icon = icons[selectedIcon]
+        if (icon && apartment.placeObject(icon.tag, mouseX, mouseY)) selectedIcon = -1 // place object
+    }
+
+    if (selectedIcon != -1 && !apartment.positionWithinApartmentBounds(mouseX, mouseY)) selectedIcon = -1
+}
+function mouseMove(e: MouseEvent) {
+    mouseX = e.offsetX
+    mouseY = e.offsetY
+
+    let iconAtPos = getIconAtPos(mouseX,mouseY) 
+    if (canvasElement) canvasElement.style.cursor = iconAtPos != -1 ? 'pointer' : 'default'
 }
 
 // your resizing logic here
@@ -104,9 +226,10 @@ function resize() {
         height = canvasElement.height = Math.floor(displayHeight * dpr)
     }
     if(ctx) ctx.scale(dpr, dpr)
-    renderParamsChanged = true
+    raycastParamsChanged = true
 }
 
 window.onload = () => { resize(); init() }
 window.onresize = () => { resize() }
-window.onclick = (event) => { mouseclick(event) }
+window.onclick = (event) => { mouseClick(event) }
+window.onmousemove = (e) => { mouseMove(e) }

@@ -14,6 +14,14 @@ export const roomSize = 125;
 const doorSize = 0.2;
 const doorPosition = 0.5;
 const wallWidth = 5;
+const maximumBounceDepth = 3;
+const degToRad = 2 * Math.PI / 360;
+const rotationHandleArcSpan = 45 * degToRad;
+const rotaionHandleDistMult = 0.67;
+export var ObjectType;
+(function (ObjectType) {
+    ObjectType[ObjectType["Mirror"] = 0] = "Mirror";
+})(ObjectType || (ObjectType = {}));
 const roomColours = [
     /* None */ 'transparent',
     /* Living Room */ 'pink',
@@ -38,7 +46,7 @@ class Line {
     y1;
     x2;
     y2;
-    constructor(x1, y1, x2, y2) {
+    constructor(x1 = 0, y1 = 0, x2 = 0, y2 = 0) {
         this.x1 = x1;
         this.y1 = y1;
         this.x2 = x2;
@@ -76,6 +84,68 @@ class Line {
         return null;
     }
 }
+class ReflectionObject {
+    type;
+    x;
+    y;
+    rotation = 0 * degToRad;
+    size = 100;
+    collider = new Line();
+    leftExtent = new Point();
+    rightExtent = new Point();
+    normalExtent = new Point();
+    constructor(type, x, y) {
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        this.updatePositions();
+    }
+    draw(ctx) {
+        if (!ctx)
+            return;
+        ctx.beginPath();
+        switch (this.type) {
+            default:
+                ctx.moveTo(this.leftExtent.x, this.leftExtent.y);
+                ctx.lineTo(this.rightExtent.x, this.rightExtent.y);
+        }
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        /* rotation handle */
+        let normalRotation = this.rotation - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.normalExtent.x, this.normalExtent.y);
+        ctx.strokeStyle = 'grey';
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+        ctx.beginPath();
+        ctx.lineWidth = 4;
+        ctx.arc(this.x, this.y, rotaionHandleDistMult * this.size, normalRotation - rotationHandleArcSpan / 2, normalRotation + rotationHandleArcSpan / 2);
+        ctx.stroke();
+    }
+    setRotation(rt) {
+        this.rotation = rt;
+        this.updatePositions();
+    }
+    updatePositions() {
+        this.leftExtent = new Point(this.x + Math.cos(this.rotation) * this.size / 2, this.y + Math.sin(this.rotation) * this.size / 2);
+        this.rightExtent = new Point(this.x - Math.cos(this.rotation) * this.size / 2, this.y - Math.sin(this.rotation) * this.size / 2);
+        let normalRotation = this.rotation - Math.PI / 2;
+        this.normalExtent = new Point(this.x + Math.cos(normalRotation) * rotaionHandleDistMult * this.size, this.y + Math.sin(normalRotation) * rotaionHandleDistMult * this.size);
+        this.collider = new Line(this.leftExtent.x, this.leftExtent.y, this.rightExtent.x, this.rightExtent.y);
+    }
+    getBounceAngle(inAngle) {
+        switch (this.type) {
+            case ObjectType.Mirror:
+            default:
+                return 2 * (this.rotation + Math.PI / 2) + inAngle;
+        }
+    }
+}
 export class Apartment {
     /* Variables */
     roomPlan;
@@ -86,6 +156,7 @@ export class Apartment {
     positionOriginX = 0;
     positionOriginY = 0;
     walls = [];
+    reflectionObjects = [];
     /* Constructor */
     constructor(roomPlan, doorsHorz, doorsVert) {
         this.roomPlan = roomPlan;
@@ -95,7 +166,7 @@ export class Apartment {
         this.apartWidth = roomPlan[0]?.length ? roomPlan[0]?.length : 0;
     }
     /* Wall collision */
-    getRaycastCollisionPoint(originX, originY, angle) {
+    getRaycastCollisionPoint(originX, originY, angle, bounceDepth = 0) {
         // 1. Calculate Unit Vector for the Ray (Always stable, unlike tan)
         const rayDirX = Math.cos(angle);
         const rayDirY = Math.sin(angle);
@@ -105,13 +176,29 @@ export class Apartment {
         for (const wall of this.walls) {
             const hit = wall.getIntersection(originX, originY, rayDirX, rayDirY);
             // 3. Keep the smallest 't' (closest distance)
-            if (hit && hit.t < closestT) {
+            if (hit && hit.t < closestT && hit.t > 0.01) {
                 closestT = hit.t;
                 closestPoint.x = hit.x;
                 closestPoint.y = hit.y;
             }
         }
-        return closestPoint;
+        for (const obj of this.reflectionObjects) {
+            const hit = obj.collider.getIntersection(originX, originY, rayDirX, rayDirY);
+            if (hit && hit.t < closestT && hit.t > 0.01 && bounceDepth < maximumBounceDepth) {
+                console.log("detected hit: ", obj.type);
+                let returnPoints = [new Point(hit.x, hit.y)];
+                returnPoints.concat(this.getRaycastCollisionPoint(hit.x, hit.y, obj.getBounceAngle(angle), bounceDepth + 1));
+                return returnPoints;
+            }
+        }
+        return [closestPoint];
+    }
+    /* Object placing */
+    placeObject(objType, x, y) {
+        if (!this.positionWithinApartmentBounds(x, y))
+            return false;
+        this.reflectionObjects.push(new ReflectionObject(objType, x, y));
+        return true;
     }
     /* Wall generation */
     generateWallLines() {
@@ -207,6 +294,26 @@ export class Apartment {
             ctx.lineTo(x2, y2);
             ctx.stroke();
         });
+        /* Draw Objects */
+        this.reflectionObjects.forEach(obj => {
+            obj.draw(ctx);
+        });
+    }
+    /* Util */
+    positionWithinApartmentBounds(x, y) {
+        if (x < this.positionOriginX || x > this.positionOriginX + this.apartWidth * roomSize)
+            return false;
+        if (y < this.positionOriginY || y > this.positionOriginY + this.apartHeight * roomSize)
+            return false;
+        return this.getRoomAtPos(x, y) != Rooms.None;
+    }
+    getRoomAtPos(x, y) {
+        let roomX = Math.floor((x - this.positionOriginX) / roomSize);
+        let roomY = Math.floor((y - this.positionOriginY) / roomSize);
+        if (roomX < 0 || roomX >= this.apartWidth || roomY < 0 || roomY >= this.apartHeight)
+            return Rooms.None;
+        let targetRoom = this.roomPlan[roomY]?.[roomX];
+        return targetRoom ? targetRoom : Rooms.None;
     }
 }
 /* Apartment 1 configuration */
