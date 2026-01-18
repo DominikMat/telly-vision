@@ -1,16 +1,24 @@
-import { apartment, ObjectType, Point } from './rooms.js';
+import { apartment, ReflectionObjectType, Point } from './rooms.js';
 /* Application configuration */
 const canvasElement = document.querySelector('canvas');
 const targetFps = 60;
 const deltaTime_ms = 1000 / targetFps;
+/* user message element */
+const userMessage = document.getElementById('userMessage');
+function setUserMessage(text) { if (userMessage)
+    userMessage.innerText = text; }
 /* Canvas Variables */
 let ctx = canvasElement?.getContext('2d');
 let width = window.innerWidth;
 let height = window.innerHeight;
 let raycastParamsChanged = true;
 /* Raycast */
+const raycastAngularResolution = 720;
+const raycastAngularStep = (2 * Math.PI / raycastAngularResolution);
 let raycastOriginX = 0;
 let raycastOriginY = 0;
+let tellyVisible = false;
+let raycastVisibilityData = new Array(raycastAngularResolution + 1);
 /* Mouse */
 let mouseX = 0;
 let mouseY = 0;
@@ -48,7 +56,7 @@ class Icon {
     }
 }
 const icons = [
-    new Icon('Mirror', './icons/mirrorIcon.png', ObjectType.Mirror)
+    new Icon('Mirror', './icons/mirrorIcon.png', ReflectionObjectType.Mirror)
 ];
 let selectedIcon = -1;
 // your init logic here
@@ -58,7 +66,18 @@ function init() {
 }
 // your loop logic here
 function loop() {
+    if (raycastParamsChanged)
+        raycastFromPosition(raycastOriginX, raycastOriginY);
+    tellyVisible = apartment.isTellyVisible();
+    setUserMessage(`Telly is ${tellyVisible ? "" : "NOT "} visible ${tellyVisible ? ':)' : ':('}`);
     draw();
+}
+function raycastFromPosition(x, y) {
+    apartment.resetVisibilityData();
+    for (let i = 0; i <= raycastAngularResolution; i++) {
+        let angle = i * raycastAngularStep;
+        raycastVisibilityData[i] = apartment.getRaycastCollisionPoint(x, y, angle);
+    }
 }
 // your render logic here
 function draw() {
@@ -86,7 +105,7 @@ function draw() {
     // drawRaycast(ctx, raycastOriginX, raycastOriginY)
     // ctx.save()
     // draw apartmetn walls
-    apartment.drawWalls(ctx);
+    apartment.drawObjects(ctx);
     ctx.beginPath();
     ctx.arc(raycastOriginX, raycastOriginY, 10, 0, 2 * Math.PI);
     ctx.fillStyle = 'orange';
@@ -133,23 +152,11 @@ function drawRaycast(ctx, x, y) {
         return;
     if (x == 0 && y == 0)
         return;
-    // Visualization Settings
-    const angularResolution = 720; // Higher res for smoother circles
-    const angularStep = (2 * Math.PI) / angularResolution;
     ctx.beginPath();
-    for (let angle = 0; angle <= 2 * Math.PI; angle += angularStep) {
-        let collisionPoints = apartment.getRaycastCollisionPoint(x, y, angle);
-        collisionPoints.forEach((p, i) => {
-            ctx.lineTo(p.x, p.y);
-        });
-        if (collisionPoints.length > 1) {
-            console.log("Multiple collisioon points!");
-        }
-        //if (collisionPoints.length > 1 && collisionPoints[0]) 
+    raycastVisibilityData.forEach(collisionPoints => {
+        collisionPoints.forEach((p, i) => { ctx.lineTo(p.x, p.y); });
         ctx.moveTo(x, y);
-    }
-    // ctx.fillStyle = 'lightblue'
-    // ctx.fill()        
+    });
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 3;
     ctx.stroke();
@@ -158,10 +165,6 @@ function drawRaycast(ctx, x, y) {
     // Close the shape back to center    
     // ctx.fillStyle = 'rgba(255, 255, 2555, 1)' // Nice "light" color
     // ctx.fill()
-    // Optional: Draw the perimeter line
-    // ctx.strokeStyle = 'white'
-    // ctx.lineWidth = 3
-    // ctx.stroke()
 }
 function mouseClick(e) {
     mouseX = e.offsetX;
@@ -178,8 +181,10 @@ function mouseClick(e) {
     }
     else {
         const icon = icons[selectedIcon];
-        if (icon && apartment.placeObject(icon.tag, mouseX, mouseY))
+        if (icon && apartment.placeObject(icon.tag, mouseX, mouseY)) {
             selectedIcon = -1; // place object
+            raycastParamsChanged = true;
+        }
     }
     if (selectedIcon != -1 && !apartment.positionWithinApartmentBounds(mouseX, mouseY))
         selectedIcon = -1;
@@ -206,8 +211,11 @@ function resize() {
 }
 window.onload = () => { resize(); init(); };
 window.onresize = () => { resize(); };
-window.onmousemove = (e) => { mouseMove(e); apartment.onMouseMove(e); };
+window.onmousemove = (e) => { mouseMove(e); let objMove = apartment.onMouseMove(e); if (objMove)
+    raycastParamsChanged = true; };
 window.onmouseup = (e) => { let objMoved = apartment.onMouseUp(e); if (!objMoved)
-    mouseClick(e); };
+    mouseClick(e);
+else
+    raycastParamsChanged = true; };
 window.onmousedown = (e) => { apartment.onMouseDown(e); };
 //# sourceMappingURL=main.js.map

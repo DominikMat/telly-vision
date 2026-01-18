@@ -1,3 +1,11 @@
+export class Point {
+    x: number = 0
+    y: number = 0
+    constructor( x: number = 0, y: number = 0) {
+        this.x = x
+        this.y = y
+    }
+}
 
 export enum Rooms { None, Livi, Kitc, Corr, Loo1, Loo2, Bed1, Bed2, Bed3 }
 export const roomSize = 125;
@@ -14,7 +22,8 @@ const rotationHandleArcSpan = 45 * degToRad
 const rotaionHandleDistMult = 0.67
 const objectHandleInteractionDistance = rotaionHandleDistMult*reflectionObjectSize / 3
 
-export enum ObjectType { Mirror }
+export enum ReflectionObjectType { Mirror }
+export enum HouseObjectType { Telly }
 
 const roomColours: Array<string> = [
     /* None */ 'transparent',
@@ -27,26 +36,26 @@ const roomColours: Array<string> = [
     /* Bedroom 2 */ 'purple',
     /* Bedroom 3 */ 'orange',
 ]
-
-export class Point {
-    x: number = 0
-    y: number = 0
-    constructor( x: number = 0, y: number = 0) {
-        this.x = x
-        this.y = y
-    }
-}
+const houseObjectsSizes: Array<Point> = [
+    /* Telly */ new Point(75,75),
+]
 
 class Line {
     x1: number; y1: number; x2: number; y2: number;
+    dy: number; dx:number; C:number; dist:number;
 
     constructor(x1: number=0, y1: number=0, x2: number=0, y2: number=0) {
         this.x1 = x1; this.y1 = y1;
         this.x2 = x2; this.y2 = y2;
+
+        this.dy = y1-y2
+        this.dx = x2-x1
+        this.C = x1*y2 - x2*y1
+        this.dist = Math.sqrt(this.dy*this.dy + this.dx*this.dx)
     }
 
     // Returns the distance 't' if hit, or null if miss
-    getIntersection(rayOriginX: number, rayOriginY: number, rayDirX: number, rayDirY: number): { t: number, x: number, y: number } | null {
+    getRayIntersection(rayOriginX: number, rayOriginY: number, rayDirX: number, rayDirY: number): { t: number, x: number, y: number } | null {
         // Wall Vector
         const v1x = this.x1;
         const v1y = this.y1;
@@ -84,7 +93,7 @@ class Line {
 }
 
 class ReflectionObject {
-    type: ObjectType
+    type: ReflectionObjectType
     x: number
     y: number
     rotation: number = 0 * degToRad
@@ -98,7 +107,7 @@ class ReflectionObject {
     onRtHandleHover:boolean = false
     onMoveHandleHover:boolean = false
     
-    constructor (type: ObjectType, x: number, y: number) {
+    constructor (type: ReflectionObjectType, x: number, y: number) {
         this.type = type
         this.x = x
         this.y = y
@@ -157,19 +166,21 @@ class ReflectionObject {
     }
     getBounceAngle(inAngle: number) {
         switch (this.type) {
-            case ObjectType.Mirror:
+            case ReflectionObjectType.Mirror:
             default:
                 return 2*(this.rotation+Math.PI/2) - inAngle + Math.PI
         }
     }
 
     /* Mouse interactions */
-    onMouseMove(pos: Point) {
+    onMouseMove(pos: Point): boolean {
         if(this.mouseTrackingRotation) this.setRotationFromPos(pos)
         else this.onRtHandleHover = this.posOnRotationHandle(pos)
 
         if (this.mouseTrackingMovement) this.setPosition(pos)
         else this.onMoveHandleHover = this.posOnMovementHandle(pos)
+
+        return this.mouseTrackingMovement || this.mouseTrackingRotation
     }
     onMouseDown(pos: Point) {
         this.mouseTrackingRotation = this.posOnRotationHandle(pos)
@@ -202,6 +213,34 @@ class ReflectionObject {
     }
 }
 
+class HouseObject {
+    name: string
+    path: string
+    loaded: boolean
+    displayImg: CanvasImageSource
+    type: HouseObjectType
+    uv: Point = new Point()
+    pos: Point = new Point()
+    size: Point = new Point(100,100)
+
+    constructor(_name:string, _path:string, _type:HouseObjectType, houseUV: Point) {
+        this.name = _name
+        this.path = _path
+        this.type = _type
+        this.loaded = false
+        this.uv = houseUV
+        this.size = houseObjectsSizes[_type] ? houseObjectsSizes[_type] : new Point(100,100)
+        
+        this.displayImg = new Image()
+        this.displayImg.src = _path
+        this.displayImg.onload = () => { this.loaded = true; };
+        this.displayImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+    }
+    updateHousePosition(newPos: Point) {
+        this.pos = newPos
+    }
+}  
+
 export class Apartment {
     /* Variables */
     roomPlan: Array<Array<Rooms>>
@@ -216,6 +255,9 @@ export class Apartment {
 
     walls: Array<Line> = []
     reflectionObjects: Array<ReflectionObject> = []
+    telly: HouseObject = new HouseObject('tv', './images/telly.png', HouseObjectType.Telly, new Point(0.06, 0.06))
+    tellyVisible: boolean = false
+    houseObjects: Array<HouseObject> = [ this.telly ]
 
     screenWidth: number = -1
     screenHeight: number = -1
@@ -230,7 +272,7 @@ export class Apartment {
         this.apartWidth = roomPlan[0]?.length ? roomPlan[0]?.length : 0;
     }
 
-    /* Wall collision */
+    /* Ray casting */
     getRaycastCollisionPoint(originX: number, originY: number, angle: number, bounceDepth:number=0): Array<Point> {
         // 1. Calculate Unit Vector for the Ray
         const rayDirX = Math.cos(angle);
@@ -241,7 +283,7 @@ export class Apartment {
 
         // 2. Check every wall
         for (const wall of this.walls) {
-            const hit = wall.getIntersection(originX, originY, rayDirX, rayDirY);
+            const hit = wall.getRayIntersection(originX, originY, rayDirX, rayDirY);
             
             // 3. Keep the smallest 't' (closest distance)
             if (hit && hit.t < closestT && hit.t > 0.01) {
@@ -251,7 +293,7 @@ export class Apartment {
             }
         }
         for (const obj of this.reflectionObjects) {
-            const hit = obj.collider.getIntersection(originX, originY, rayDirX, rayDirY)
+            const hit = obj.collider.getRayIntersection(originX, originY, rayDirX, rayDirY)
             if (hit && hit.t < closestT && hit.t > 0.01 && bounceDepth < maximumBounceDepth) {
                 let currentCollisionPoint: Array<Point> = [new Point(hit.x, hit.y)]
                 let furtherCollisionPoints = this.getRaycastCollisionPoint(hit.x, hit.y, obj.getBounceAngle(angle), bounceDepth+1)
@@ -259,11 +301,31 @@ export class Apartment {
             }
         }
 
+        if (!this.tellyVisible && this.isTellyVisibleFromRay(new Point(originX,originY), closestPoint, this.telly.size.x/2)) this.tellyVisible = true
         return [closestPoint];
+    }
+    resetVisibilityData() {
+        this.tellyVisible = false
+    }
+    isTellyVisibleFromRay(lineStart:Point, lineEnd:Point, minDist: number): boolean {
+        let tellyCentre = new Point(this.telly.pos.x+this.telly.size.x/2,this.telly.pos.y+this.telly.size.y/2)
+
+        // check line points are within point bounding box 
+        if (lineStart.x > tellyCentre.x+minDist && lineEnd.x > tellyCentre.x+minDist) return false
+        if (lineStart.y > tellyCentre.y+minDist && lineEnd.y > tellyCentre.y+minDist) return false
+        if (lineStart.x < tellyCentre.x-minDist && lineEnd.x < tellyCentre.x-minDist) return false
+        if (lineStart.y < tellyCentre.y-minDist && lineEnd.y < tellyCentre.y-minDist) return false
+
+        let dy = lineStart.y - lineEnd.y
+        let dx = lineEnd.x - lineStart.x
+        let dist = Math.sqrt(dx*dx + dy*dy)
+        let C = lineStart.x*lineEnd.y - lineEnd.x*lineStart.y
+        let minDistToPoint = Math.abs(dy*tellyCentre.x + dx*tellyCentre.y + C) / dist
+        return minDistToPoint <= minDist
     }
 
     /* Object placing */
-    placeObject(objType: ObjectType, x:number, y:number): boolean {
+    placeObject(objType: ReflectionObjectType, x:number, y:number): boolean {
         if (!this.positionWithinApartmentBounds(x,y)) return false
         this.reflectionObjects.push(new ReflectionObject(objType, x, y))
         return true
@@ -333,14 +395,14 @@ export class Apartment {
             }
         }
     }
-    drawWalls(ctx: CanvasRenderingContext2D) {
+    drawObjects(ctx: CanvasRenderingContext2D) {
         if (!ctx) return;
         if (this.walls.length == 0) this.generateWallLines()
         
+            
+        /* Draw Walls */
         ctx.lineWidth = wallWidth
         ctx.strokeStyle = 'black'
-
-        /* Draw Walls */
         this.walls.forEach(line => {
             
             // fix wall corners
@@ -355,7 +417,12 @@ export class Apartment {
             ctx.stroke()
         });
 
-        /* Draw Objects */
+        /* Draw House Objects */
+        this.houseObjects.forEach(obj => {
+            if (obj.loaded) ctx.drawImage(obj.displayImg, obj.pos.x, obj.pos.y, obj.size.x, obj.size.y)
+        });
+
+        /* Draw Reflection Objects */
         this.reflectionObjects.forEach(obj => {
             obj.draw(ctx)
         });
@@ -381,7 +448,15 @@ export class Apartment {
             this.positionOriginX = this.screenWidth/2 - (this.apartWidth/2)*roomSize
             this.positionOriginY = this.screenHeight/2 - (this.apartHeight/2)*roomSize
             this.generateWallLines()
+            this.houseObjects.forEach(ho => { ho.updateHousePosition(this.uvToWorld(ho.uv)) });
         }
+    }
+    isTellyVisible():boolean { return this.tellyVisible }
+    private uvToWorld(uv: Point): Point {
+        return new Point(
+            this.positionOriginX + uv.x*roomSize*this.apartWidth,
+            this.positionOriginY + uv.y*roomSize*this.apartHeight
+        )
     }
 
     /* Mouse interactions */
@@ -400,9 +475,11 @@ export class Apartment {
         if (removeIdx != -1) this.reflectionObjects.splice(removeIdx,1)
         return anyObjMoved
     }
-    onMouseMove(e: MouseEvent) {
+    onMouseMove(e: MouseEvent): boolean {
+        let objMoved = false
         let mousePos = new Point(e.offsetX, e.offsetY)
-        this.reflectionObjects.forEach(ro => { ro.onMouseMove(mousePos) });
+        this.reflectionObjects.forEach(ro => { objMoved ||= ro.onMouseMove(mousePos) });
+        return objMoved
     }
 }
 

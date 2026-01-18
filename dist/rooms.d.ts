@@ -1,3 +1,8 @@
+export declare class Point {
+    x: number;
+    y: number;
+    constructor(x?: number, y?: number);
+}
 export declare enum Rooms {
     None = 0,
     Livi = 1,
@@ -10,28 +15,30 @@ export declare enum Rooms {
     Bed3 = 8
 }
 export declare const roomSize = 125;
-export declare enum ObjectType {
+export declare enum ReflectionObjectType {
     Mirror = 0
 }
-export declare class Point {
-    x: number;
-    y: number;
-    constructor(x?: number, y?: number);
+export declare enum HouseObjectType {
+    Telly = 0
 }
 declare class Line {
     x1: number;
     y1: number;
     x2: number;
     y2: number;
+    dy: number;
+    dx: number;
+    C: number;
+    dist: number;
     constructor(x1?: number, y1?: number, x2?: number, y2?: number);
-    getIntersection(rayOriginX: number, rayOriginY: number, rayDirX: number, rayDirY: number): {
+    getRayIntersection(rayOriginX: number, rayOriginY: number, rayDirX: number, rayDirY: number): {
         t: number;
         x: number;
         y: number;
     } | null;
 }
 declare class ReflectionObject {
-    type: ObjectType;
+    type: ReflectionObjectType;
     x: number;
     y: number;
     rotation: number;
@@ -44,18 +51,30 @@ declare class ReflectionObject {
     mouseTrackingMovement: boolean;
     onRtHandleHover: boolean;
     onMoveHandleHover: boolean;
-    constructor(type: ObjectType, x: number, y: number);
+    constructor(type: ReflectionObjectType, x: number, y: number);
     draw(ctx: CanvasRenderingContext2D): void;
     setRotation(rt: number): void;
     setRotationFromPos(pos: Point): void;
     setPosition(pos: Point): void;
     private updateRelativePositions;
     getBounceAngle(inAngle: number): number;
-    onMouseMove(pos: Point): void;
+    onMouseMove(pos: Point): boolean;
     onMouseDown(pos: Point): void;
     onMouseUp(pos: Point): boolean;
     private posOnRotationHandle;
     private posOnMovementHandle;
+}
+declare class HouseObject {
+    name: string;
+    path: string;
+    loaded: boolean;
+    displayImg: CanvasImageSource;
+    type: HouseObjectType;
+    uv: Point;
+    pos: Point;
+    size: Point;
+    constructor(_name: string, _path: string, _type: HouseObjectType, houseUV: Point);
+    updateHousePosition(newPos: Point): void;
 }
 export declare class Apartment {
     roomPlan: Array<Array<Rooms>>;
@@ -67,21 +86,28 @@ export declare class Apartment {
     positionOriginY: number;
     walls: Array<Line>;
     reflectionObjects: Array<ReflectionObject>;
+    telly: HouseObject;
+    tellyVisible: boolean;
+    houseObjects: Array<HouseObject>;
     screenWidth: number;
     screenHeight: number;
     constructor(roomPlan: Array<Array<Rooms>>, doorsHorz: Array<Array<number>>, doorsVert: Array<Array<number>>);
     getRaycastCollisionPoint(originX: number, originY: number, angle: number, bounceDepth?: number): Array<Point>;
-    placeObject(objType: ObjectType, x: number, y: number): boolean;
+    resetVisibilityData(): void;
+    isTellyVisibleFromRay(lineStart: Point, lineEnd: Point, minDist: number): boolean;
+    placeObject(objType: ReflectionObjectType, x: number, y: number): boolean;
     generateWallLines(): void;
     private addNewWall;
     drawRooms(ctx: CanvasRenderingContext2D, greyscale: boolean): void;
-    drawWalls(ctx: CanvasRenderingContext2D): void;
+    drawObjects(ctx: CanvasRenderingContext2D): void;
     positionWithinApartmentBounds(x: number, y: number): boolean;
     getRoomAtPos(x: number, y: number): Rooms;
     updateScreenSize(w: number, h: number): void;
+    isTellyVisible(): boolean;
+    private uvToWorld;
     onMouseDown(e: MouseEvent): void;
     onMouseUp(e: MouseEvent): boolean;
-    onMouseMove(e: MouseEvent): void;
+    onMouseMove(e: MouseEvent): boolean;
 }
 export declare let apartment: Apartment;
 export {};

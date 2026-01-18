@@ -1,3 +1,11 @@
+export class Point {
+    x = 0;
+    y = 0;
+    constructor(x = 0, y = 0) {
+        this.x = x;
+        this.y = y;
+    }
+}
 export var Rooms;
 (function (Rooms) {
     Rooms[Rooms["None"] = 0] = "None";
@@ -20,10 +28,14 @@ const degToRad = 2 * Math.PI / 360;
 const rotationHandleArcSpan = 45 * degToRad;
 const rotaionHandleDistMult = 0.67;
 const objectHandleInteractionDistance = rotaionHandleDistMult * reflectionObjectSize / 3;
-export var ObjectType;
-(function (ObjectType) {
-    ObjectType[ObjectType["Mirror"] = 0] = "Mirror";
-})(ObjectType || (ObjectType = {}));
+export var ReflectionObjectType;
+(function (ReflectionObjectType) {
+    ReflectionObjectType[ReflectionObjectType["Mirror"] = 0] = "Mirror";
+})(ReflectionObjectType || (ReflectionObjectType = {}));
+export var HouseObjectType;
+(function (HouseObjectType) {
+    HouseObjectType[HouseObjectType["Telly"] = 0] = "Telly";
+})(HouseObjectType || (HouseObjectType = {}));
 const roomColours = [
     /* None */ 'transparent',
     /* Living Room */ 'pink',
@@ -35,27 +47,30 @@ const roomColours = [
     /* Bedroom 2 */ 'purple',
     /* Bedroom 3 */ 'orange',
 ];
-export class Point {
-    x = 0;
-    y = 0;
-    constructor(x = 0, y = 0) {
-        this.x = x;
-        this.y = y;
-    }
-}
+const houseObjectsSizes = [
+    /* Telly */ new Point(75, 75),
+];
 class Line {
     x1;
     y1;
     x2;
     y2;
+    dy;
+    dx;
+    C;
+    dist;
     constructor(x1 = 0, y1 = 0, x2 = 0, y2 = 0) {
         this.x1 = x1;
         this.y1 = y1;
         this.x2 = x2;
         this.y2 = y2;
+        this.dy = y1 - y2;
+        this.dx = x2 - x1;
+        this.C = x1 * y2 - x2 * y1;
+        this.dist = Math.sqrt(this.dy * this.dy + this.dx * this.dx);
     }
     // Returns the distance 't' if hit, or null if miss
-    getIntersection(rayOriginX, rayOriginY, rayDirX, rayDirY) {
+    getRayIntersection(rayOriginX, rayOriginY, rayDirX, rayDirY) {
         // Wall Vector
         const v1x = this.x1;
         const v1y = this.y1;
@@ -157,7 +172,7 @@ class ReflectionObject {
     }
     getBounceAngle(inAngle) {
         switch (this.type) {
-            case ObjectType.Mirror:
+            case ReflectionObjectType.Mirror:
             default:
                 return 2 * (this.rotation + Math.PI / 2) - inAngle + Math.PI;
         }
@@ -172,6 +187,7 @@ class ReflectionObject {
             this.setPosition(pos);
         else
             this.onMoveHandleHover = this.posOnMovementHandle(pos);
+        return this.mouseTrackingMovement || this.mouseTrackingRotation;
     }
     onMouseDown(pos) {
         this.mouseTrackingRotation = this.posOnRotationHandle(pos);
@@ -203,6 +219,31 @@ class ReflectionObject {
         return dist < objectHandleInteractionDistance;
     }
 }
+class HouseObject {
+    name;
+    path;
+    loaded;
+    displayImg;
+    type;
+    uv = new Point();
+    pos = new Point();
+    size = new Point(100, 100);
+    constructor(_name, _path, _type, houseUV) {
+        this.name = _name;
+        this.path = _path;
+        this.type = _type;
+        this.loaded = false;
+        this.uv = houseUV;
+        this.size = houseObjectsSizes[_type] ? houseObjectsSizes[_type] : new Point(100, 100);
+        this.displayImg = new Image();
+        this.displayImg.src = _path;
+        this.displayImg.onload = () => { this.loaded = true; };
+        this.displayImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+    }
+    updateHousePosition(newPos) {
+        this.pos = newPos;
+    }
+}
 export class Apartment {
     /* Variables */
     roomPlan;
@@ -214,6 +255,9 @@ export class Apartment {
     positionOriginY = 0;
     walls = [];
     reflectionObjects = [];
+    telly = new HouseObject('tv', './images/telly.png', HouseObjectType.Telly, new Point(0.06, 0.06));
+    tellyVisible = false;
+    houseObjects = [this.telly];
     screenWidth = -1;
     screenHeight = -1;
     /* Constructor */
@@ -224,7 +268,7 @@ export class Apartment {
         this.apartHeight = roomPlan.length;
         this.apartWidth = roomPlan[0]?.length ? roomPlan[0]?.length : 0;
     }
-    /* Wall collision */
+    /* Ray casting */
     getRaycastCollisionPoint(originX, originY, angle, bounceDepth = 0) {
         // 1. Calculate Unit Vector for the Ray
         const rayDirX = Math.cos(angle);
@@ -233,7 +277,7 @@ export class Apartment {
         let closestPoint = new Point(originX + rayDirX * 10000, originY + rayDirY * 10000); // Default far away
         // 2. Check every wall
         for (const wall of this.walls) {
-            const hit = wall.getIntersection(originX, originY, rayDirX, rayDirY);
+            const hit = wall.getRayIntersection(originX, originY, rayDirX, rayDirY);
             // 3. Keep the smallest 't' (closest distance)
             if (hit && hit.t < closestT && hit.t > 0.01) {
                 closestT = hit.t;
@@ -242,14 +286,37 @@ export class Apartment {
             }
         }
         for (const obj of this.reflectionObjects) {
-            const hit = obj.collider.getIntersection(originX, originY, rayDirX, rayDirY);
+            const hit = obj.collider.getRayIntersection(originX, originY, rayDirX, rayDirY);
             if (hit && hit.t < closestT && hit.t > 0.01 && bounceDepth < maximumBounceDepth) {
                 let currentCollisionPoint = [new Point(hit.x, hit.y)];
                 let furtherCollisionPoints = this.getRaycastCollisionPoint(hit.x, hit.y, obj.getBounceAngle(angle), bounceDepth + 1);
                 return currentCollisionPoint.concat(furtherCollisionPoints);
             }
         }
+        if (!this.tellyVisible && this.isTellyVisibleFromRay(new Point(originX, originY), closestPoint, this.telly.size.x / 2))
+            this.tellyVisible = true;
         return [closestPoint];
+    }
+    resetVisibilityData() {
+        this.tellyVisible = false;
+    }
+    isTellyVisibleFromRay(lineStart, lineEnd, minDist) {
+        let tellyCentre = new Point(this.telly.pos.x + this.telly.size.x / 2, this.telly.pos.y + this.telly.size.y / 2);
+        // check line points are within point bounding box 
+        if (lineStart.x > tellyCentre.x + minDist && lineEnd.x > tellyCentre.x + minDist)
+            return false;
+        if (lineStart.y > tellyCentre.y + minDist && lineEnd.y > tellyCentre.y + minDist)
+            return false;
+        if (lineStart.x < tellyCentre.x - minDist && lineEnd.x < tellyCentre.x - minDist)
+            return false;
+        if (lineStart.y < tellyCentre.y - minDist && lineEnd.y < tellyCentre.y - minDist)
+            return false;
+        let dy = lineStart.y - lineEnd.y;
+        let dx = lineEnd.x - lineStart.x;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        let C = lineStart.x * lineEnd.y - lineEnd.x * lineStart.y;
+        let minDistToPoint = Math.abs(dy * tellyCentre.x + dx * tellyCentre.y + C) / dist;
+        return minDistToPoint <= minDist;
     }
     /* Object placing */
     placeObject(objType, x, y) {
@@ -322,14 +389,14 @@ export class Apartment {
             }
         }
     }
-    drawWalls(ctx) {
+    drawObjects(ctx) {
         if (!ctx)
             return;
         if (this.walls.length == 0)
             this.generateWallLines();
+        /* Draw Walls */
         ctx.lineWidth = wallWidth;
         ctx.strokeStyle = 'black';
-        /* Draw Walls */
         this.walls.forEach(line => {
             // fix wall corners
             let x1 = line.x1;
@@ -350,7 +417,12 @@ export class Apartment {
             ctx.lineTo(x2, y2);
             ctx.stroke();
         });
-        /* Draw Objects */
+        /* Draw House Objects */
+        this.houseObjects.forEach(obj => {
+            if (obj.loaded)
+                ctx.drawImage(obj.displayImg, obj.pos.x, obj.pos.y, obj.size.x, obj.size.y);
+        });
+        /* Draw Reflection Objects */
         this.reflectionObjects.forEach(obj => {
             obj.draw(ctx);
         });
@@ -378,7 +450,12 @@ export class Apartment {
             this.positionOriginX = this.screenWidth / 2 - (this.apartWidth / 2) * roomSize;
             this.positionOriginY = this.screenHeight / 2 - (this.apartHeight / 2) * roomSize;
             this.generateWallLines();
+            this.houseObjects.forEach(ho => { ho.updateHousePosition(this.uvToWorld(ho.uv)); });
         }
+    }
+    isTellyVisible() { return this.tellyVisible; }
+    uvToWorld(uv) {
+        return new Point(this.positionOriginX + uv.x * roomSize * this.apartWidth, this.positionOriginY + uv.y * roomSize * this.apartHeight);
     }
     /* Mouse interactions */
     onMouseDown(e) {
@@ -399,8 +476,10 @@ export class Apartment {
         return anyObjMoved;
     }
     onMouseMove(e) {
+        let objMoved = false;
         let mousePos = new Point(e.offsetX, e.offsetY);
-        this.reflectionObjects.forEach(ro => { ro.onMouseMove(mousePos); });
+        this.reflectionObjects.forEach(ro => { objMoved ||= ro.onMouseMove(mousePos); });
+        return objMoved;
     }
 }
 /* Apartment 1 configuration */
