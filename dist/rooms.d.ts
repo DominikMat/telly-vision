@@ -40,11 +40,22 @@ declare class ReflectionObject {
     leftExtent: Point;
     rightExtent: Point;
     normalExtent: Point;
+    mouseTrackingRotation: boolean;
+    mouseTrackingMovement: boolean;
+    onRtHandleHover: boolean;
+    onMoveHandleHover: boolean;
     constructor(type: ObjectType, x: number, y: number);
     draw(ctx: CanvasRenderingContext2D): void;
     setRotation(rt: number): void;
-    private updatePositions;
+    setRotationFromPos(pos: Point): void;
+    setPosition(pos: Point): void;
+    private updateRelativePositions;
     getBounceAngle(inAngle: number): number;
+    onMouseMove(pos: Point): void;
+    onMouseDown(pos: Point): void;
+    onMouseUp(pos: Point): boolean;
+    private posOnRotationHandle;
+    private posOnMovementHandle;
 }
 export declare class Apartment {
     roomPlan: Array<Array<Rooms>>;
@@ -56,15 +67,21 @@ export declare class Apartment {
     positionOriginY: number;
     walls: Array<Line>;
     reflectionObjects: Array<ReflectionObject>;
+    screenWidth: number;
+    screenHeight: number;
     constructor(roomPlan: Array<Array<Rooms>>, doorsHorz: Array<Array<number>>, doorsVert: Array<Array<number>>);
     getRaycastCollisionPoint(originX: number, originY: number, angle: number, bounceDepth?: number): Array<Point>;
     placeObject(objType: ObjectType, x: number, y: number): boolean;
     generateWallLines(): void;
     private addNewWall;
-    drawRooms(ctx: CanvasRenderingContext2D, width: number, height: number, greyscale: boolean): void;
+    drawRooms(ctx: CanvasRenderingContext2D, greyscale: boolean): void;
     drawWalls(ctx: CanvasRenderingContext2D): void;
     positionWithinApartmentBounds(x: number, y: number): boolean;
     getRoomAtPos(x: number, y: number): Rooms;
+    updateScreenSize(w: number, h: number): void;
+    onMouseDown(e: MouseEvent): void;
+    onMouseUp(e: MouseEvent): boolean;
+    onMouseMove(e: MouseEvent): void;
 }
 export declare let apartment: Apartment;
 export {};

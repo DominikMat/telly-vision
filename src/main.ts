@@ -21,10 +21,10 @@ let mouseY = 0
 
 /* icons */
 const iconPanelWidth = 100
-const iconPanelXPosPercent = 0.15
 const iconPanelHeightPercent = 0.5
 const iconSize = iconPanelWidth * 0.8
-const iconPanelXMiddle = width*iconPanelXPosPercent
+let iconPanelXMiddle = 0
+function updateIconPanelPosition() { iconPanelXMiddle = apartment.positionOriginX - iconPanelWidth }
 function getIconPos(i: number) { return new Point(iconPanelXMiddle-iconSize/2, height*iconPanelHeightPercent/2+i*iconSize) }
 function getIconAtPos(x:number, y:number) { 
     if (x < iconPanelXMiddle-iconPanelWidth/2 || x > iconPanelXMiddle+iconPanelWidth/2) return -1
@@ -80,7 +80,8 @@ function draw() {
         ctx.clearRect(0,0,width,height)
 
         // draw grey rooms
-        apartment.drawRooms(ctx, width, height, true) 
+        apartment.updateScreenSize(width, height)
+        apartment.drawRooms(ctx, true) 
     
         // make hole with raycast
         ctx.save()
@@ -91,7 +92,7 @@ function draw() {
         // fill empty space with coloured rooms
         ctx.restore()
         ctx.globalCompositeOperation = 'destination-over';
-        apartment.drawRooms(ctx, width, height, false)
+        apartment.drawRooms(ctx, false)
         ctx.restore()
 
         // raycast on top of all
@@ -111,6 +112,7 @@ function draw() {
 
     /* Icon Panel */
     //ctx.clearRect(0,0,iconPanelXMiddle+iconPanelWidth/2,height)
+    updateIconPanelPosition()
     ctx.beginPath()
     ctx.arc(iconPanelXMiddle, iconPanelHeightPercent/2*height, iconPanelWidth/2, Math.PI, 2*Math.PI)
     ctx.lineTo(iconPanelXMiddle+iconPanelWidth/2, (1-iconPanelHeightPercent/2)*height)
@@ -192,7 +194,7 @@ function drawRaycast(ctx: CanvasRenderingContext2D, x: number, y: number) {
     // ctx.stroke()
 }
 
-function mouseClick(e: PointerEvent) {
+function mouseClick(e: MouseEvent) {
     mouseX = e.offsetX
     mouseY = e.offsetY
 
@@ -234,5 +236,6 @@ function resize() {
 
 window.onload = () => { resize(); init() }
 window.onresize = () => { resize() }
-window.onclick = (event) => { mouseClick(event) }
-window.onmousemove = (e) => { mouseMove(e) }
+window.onmousemove = (e) => { mouseMove(e); apartment.onMouseMove(e); }
+window.onmouseup = (e) => { let objMoved = apartment.onMouseUp(e); if (!objMoved) mouseClick(e); }
+window.onmousedown = (e) => { apartment.onMouseDown(e); }

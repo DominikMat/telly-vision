@@ -11,13 +11,15 @@ export var Rooms;
     Rooms[Rooms["Bed3"] = 8] = "Bed3";
 })(Rooms || (Rooms = {}));
 export const roomSize = 125;
-const doorSize = 0.2;
+const doorSize = 0.5;
 const doorPosition = 0.5;
 const wallWidth = 5;
 const maximumBounceDepth = 3;
+const reflectionObjectSize = 100;
 const degToRad = 2 * Math.PI / 360;
 const rotationHandleArcSpan = 45 * degToRad;
 const rotaionHandleDistMult = 0.67;
+const objectHandleInteractionDistance = rotaionHandleDistMult * reflectionObjectSize / 3;
 export var ObjectType;
 (function (ObjectType) {
     ObjectType[ObjectType["Mirror"] = 0] = "Mirror";
@@ -89,16 +91,20 @@ class ReflectionObject {
     x;
     y;
     rotation = 0 * degToRad;
-    size = 100;
+    size = reflectionObjectSize;
     collider = new Line();
     leftExtent = new Point();
     rightExtent = new Point();
     normalExtent = new Point();
+    mouseTrackingRotation = false;
+    mouseTrackingMovement = false;
+    onRtHandleHover = false;
+    onMoveHandleHover = false;
     constructor(type, x, y) {
         this.type = type;
         this.x = x;
         this.y = y;
-        this.updatePositions();
+        this.updateRelativePositions();
     }
     draw(ctx) {
         if (!ctx)
@@ -110,28 +116,39 @@ class ReflectionObject {
                 ctx.lineTo(this.rightExtent.x, this.rightExtent.y);
         }
         ctx.strokeStyle = 'white';
-        ctx.lineWidth = 5;
+        ctx.lineWidth = this.onMoveHandleHover ? 6 : 3;
         ctx.stroke();
         /* rotation handle */
         let normalRotation = this.rotation - Math.PI / 2;
         ctx.beginPath();
         ctx.moveTo(this.x, this.y);
         ctx.lineTo(this.normalExtent.x, this.normalExtent.y);
-        ctx.strokeStyle = 'grey';
+        ctx.strokeStyle = 'black'; //this.onRtHandleHover ? 'black' : 'grey'
         ctx.globalAlpha = 0.35;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = this.onRtHandleHover ? 4 : 1;
         ctx.stroke();
         ctx.globalAlpha = 1.0;
         ctx.beginPath();
-        ctx.lineWidth = 4;
+        ctx.lineWidth = this.onRtHandleHover ? 6 : 2;
         ctx.arc(this.x, this.y, rotaionHandleDistMult * this.size, normalRotation - rotationHandleArcSpan / 2, normalRotation + rotationHandleArcSpan / 2);
         ctx.stroke();
     }
     setRotation(rt) {
-        this.rotation = rt;
-        this.updatePositions();
+        if (rt != this.rotation) {
+            this.rotation = rt;
+            this.updateRelativePositions();
+        }
     }
-    updatePositions() {
+    setRotationFromPos(pos) {
+        let newRt = Math.atan2(this.y - pos.y, this.x - pos.x) - Math.PI / 2;
+        this.setRotation(newRt);
+    }
+    setPosition(pos) {
+        this.x = pos.x;
+        this.y = pos.y;
+        this.updateRelativePositions();
+    }
+    updateRelativePositions() {
         this.leftExtent = new Point(this.x + Math.cos(this.rotation) * this.size / 2, this.y + Math.sin(this.rotation) * this.size / 2);
         this.rightExtent = new Point(this.x - Math.cos(this.rotation) * this.size / 2, this.y - Math.sin(this.rotation) * this.size / 2);
         let normalRotation = this.rotation - Math.PI / 2;
@@ -145,6 +162,46 @@ class ReflectionObject {
                 return 2 * (this.rotation + Math.PI / 2) - inAngle + Math.PI;
         }
     }
+    /* Mouse interactions */
+    onMouseMove(pos) {
+        if (this.mouseTrackingRotation)
+            this.setRotationFromPos(pos);
+        else
+            this.onRtHandleHover = this.posOnRotationHandle(pos);
+        if (this.mouseTrackingMovement)
+            this.setPosition(pos);
+        else
+            this.onMoveHandleHover = this.posOnMovementHandle(pos);
+    }
+    onMouseDown(pos) {
+        this.mouseTrackingRotation = this.posOnRotationHandle(pos);
+        this.mouseTrackingMovement = this.posOnMovementHandle(pos);
+    }
+    onMouseUp(pos) {
+        if (this.mouseTrackingRotation) {
+            this.setRotationFromPos(pos);
+            this.mouseTrackingRotation = false;
+            return true;
+        }
+        if (this.mouseTrackingMovement) {
+            this.setPosition(pos);
+            this.mouseTrackingMovement = false;
+            return true;
+        }
+        return false;
+    }
+    posOnRotationHandle(pos) {
+        let dx = this.normalExtent.x - pos.x;
+        let dy = this.normalExtent.y - pos.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        return dist < objectHandleInteractionDistance;
+    }
+    posOnMovementHandle(pos) {
+        let dx = this.x - pos.x;
+        let dy = this.y - pos.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        return dist < objectHandleInteractionDistance;
+    }
 }
 export class Apartment {
     /* Variables */
@@ -157,6 +214,8 @@ export class Apartment {
     positionOriginY = 0;
     walls = [];
     reflectionObjects = [];
+    screenWidth = -1;
+    screenHeight = -1;
     /* Constructor */
     constructor(roomPlan, doorsHorz, doorsVert) {
         this.roomPlan = roomPlan;
@@ -238,13 +297,11 @@ export class Apartment {
         }
     }
     /* Render functions */
-    drawRooms(ctx, width, height, greyscale) {
+    drawRooms(ctx, greyscale) {
         if (!ctx)
             return;
         if (this.roomPlan === undefined || this.roomPlan.length == 0)
             return;
-        this.positionOriginX = width / 2 - (this.apartWidth / 2) * roomSize;
-        this.positionOriginY = height / 2 - (this.apartHeight / 2) * roomSize;
         for (let x = 0; x < this.apartWidth; x++) {
             for (let y = 0; y < this.apartHeight; y++) {
                 /* Draw floor */
@@ -313,6 +370,37 @@ export class Apartment {
             return Rooms.None;
         let targetRoom = this.roomPlan[roomY]?.[roomX];
         return targetRoom ? targetRoom : Rooms.None;
+    }
+    updateScreenSize(w, h) {
+        if (this.screenWidth != w || this.screenHeight != h) {
+            this.screenWidth = w;
+            this.screenHeight = h;
+            this.positionOriginX = this.screenWidth / 2 - (this.apartWidth / 2) * roomSize;
+            this.positionOriginY = this.screenHeight / 2 - (this.apartHeight / 2) * roomSize;
+            this.generateWallLines();
+        }
+    }
+    /* Mouse interactions */
+    onMouseDown(e) {
+        let mousePos = new Point(e.offsetX, e.offsetY);
+        this.reflectionObjects.forEach(ro => { ro.onMouseDown(mousePos); });
+    }
+    onMouseUp(e) {
+        let anyObjMoved = false;
+        let mousePos = new Point(e.offsetX, e.offsetY);
+        let removeIdx = -1; // there should only be max 1 object to remove
+        this.reflectionObjects.forEach((ro, i) => {
+            anyObjMoved = ro.onMouseUp(mousePos) || anyObjMoved;
+            if (!this.positionWithinApartmentBounds(ro.x, ro.y))
+                removeIdx = i;
+        });
+        if (removeIdx != -1)
+            this.reflectionObjects.splice(removeIdx, 1);
+        return anyObjMoved;
+    }
+    onMouseMove(e) {
+        let mousePos = new Point(e.offsetX, e.offsetY);
+        this.reflectionObjects.forEach(ro => { ro.onMouseMove(mousePos); });
     }
 }
 /* Apartment 1 configuration */
