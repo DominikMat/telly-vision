@@ -142,7 +142,7 @@ class ReflectionObject {
         switch (this.type) {
             case ObjectType.Mirror:
             default:
-                return 2 * (this.rotation + Math.PI / 2) + inAngle;
+                return 2 * (this.rotation + Math.PI / 2) - inAngle + Math.PI;
         }
     }
 }
@@ -167,7 +167,7 @@ export class Apartment {
     }
     /* Wall collision */
     getRaycastCollisionPoint(originX, originY, angle, bounceDepth = 0) {
-        // 1. Calculate Unit Vector for the Ray (Always stable, unlike tan)
+        // 1. Calculate Unit Vector for the Ray
         const rayDirX = Math.cos(angle);
         const rayDirY = Math.sin(angle);
         let closestT = Infinity;
@@ -185,10 +185,9 @@ export class Apartment {
         for (const obj of this.reflectionObjects) {
             const hit = obj.collider.getIntersection(originX, originY, rayDirX, rayDirY);
             if (hit && hit.t < closestT && hit.t > 0.01 && bounceDepth < maximumBounceDepth) {
-                console.log("detected hit: ", obj.type);
-                let returnPoints = [new Point(hit.x, hit.y)];
-                returnPoints.concat(this.getRaycastCollisionPoint(hit.x, hit.y, obj.getBounceAngle(angle), bounceDepth + 1));
-                return returnPoints;
+                let currentCollisionPoint = [new Point(hit.x, hit.y)];
+                let furtherCollisionPoints = this.getRaycastCollisionPoint(hit.x, hit.y, obj.getBounceAngle(angle), bounceDepth + 1);
+                return currentCollisionPoint.concat(furtherCollisionPoints);
             }
         }
         return [closestPoint];

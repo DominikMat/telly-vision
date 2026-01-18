@@ -80,25 +80,25 @@ function draw() {
         ctx.clearRect(0,0,width,height)
 
         // draw grey rooms
-        // apartment.drawRooms(ctx, width, height, true) 
+        apartment.drawRooms(ctx, width, height, true) 
     
         // make hole with raycast
-        // ctx.save()
-        // // ctx.globalCompositeOperation = 'destination-out';
-        // drawRaycast(ctx, raycastOriginX, raycastOriginY)
-        // ctx.save()
+        ctx.save()
+        ctx.globalCompositeOperation = 'destination-out';
+        drawRaycast(ctx, raycastOriginX, raycastOriginY)
+        ctx.save()
     
         // fill empty space with coloured rooms
         ctx.restore()
-        // ctx.globalCompositeOperation = 'destination-over';
+        ctx.globalCompositeOperation = 'destination-over';
         apartment.drawRooms(ctx, width, height, false)
         ctx.restore()
 
         // raycast on top of all
-        ctx.save()
-        // ctx.globalCompositeOperation = 'destination-out';
-        drawRaycast(ctx, raycastOriginX, raycastOriginY)
-        ctx.save()
+        // ctx.save()
+        // // ctx.globalCompositeOperation = 'destination-out';
+        // drawRaycast(ctx, raycastOriginX, raycastOriginY)
+        // ctx.save()
     
         // draw apartmetn walls
         apartment.drawWalls(ctx)
@@ -158,24 +158,27 @@ function drawRaycast(ctx: CanvasRenderingContext2D, x: number, y: number) {
     const angularStep = (2 * Math.PI) / angularResolution;
 
     ctx.beginPath();
-
+    
     for (let angle = 0; angle <= 2 * Math.PI; angle += angularStep) {
         let collisionPoints = apartment.getRaycastCollisionPoint(x, y, angle);
-        collisionPoints.forEach(p => {
+        collisionPoints.forEach((p,i) => {
             ctx.lineTo(p.x, p.y);
         });
 
         if (collisionPoints.length > 1) {
-            console.log(collisionPoints)
+            console.log("Multiple collisioon points!")
         }
         //if (collisionPoints.length > 1 && collisionPoints[0]) 
         ctx.moveTo(x,y)
-    }
+
+    }   
+    // ctx.fillStyle = 'lightblue'
+    // ctx.fill()        
     
     ctx.strokeStyle = 'white'
     ctx.lineWidth = 3
     ctx.stroke()
-        
+
     
     // let closeShapePoint = apartment.getRaycastCollisionPoint(x, y, 0);
     // ctx.lineTo(closeShapePoint.x, closeShapePoint.y);
