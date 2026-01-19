@@ -1,6 +1,11 @@
-import { apartment, ReflectionObjectType, Point } from './rooms.js'
+import { apartment, ReflectionObjectType } from './rooms.js'
+import { raycastFromPosition, drawRaycast, drawRaycastOrigin } from './raycast.js'
+import { IconPanel, Icon } from './iconPanel.js'
+import { levelManager } from './levels.js'
 
 /* Application configuration */
+const headerSize = 0.1
+const noHeaderSize = (1-headerSize)
 const canvasElement: HTMLCanvasElement | null = document.querySelector('canvas');
 const targetFps = 60
 const deltaTime_ms = 1000 / targetFps
@@ -9,6 +14,18 @@ const deltaTime_ms = 1000 / targetFps
 const userMessage: HTMLElement | null = document.getElementById('userMessage')
 function setUserMessage(text: string) { if (userMessage) userMessage.innerText = text }
 
+/* start hoover button element */
+const startHooverButton: HTMLButtonElement | null = document.querySelector('button')
+if (startHooverButton) startHooverButton.onclick = () => { onStartHooverClicked() }
+
+/* score display element */
+const minimumScore = 0.95
+const scoreDisplay: HTMLElement | null = document.getElementById('scoreDisplay')
+function setScoreDisplay(value: number) { 
+    if (scoreDisplay) scoreDisplay.innerHTML = `<b style={{color:'white'}}> ${Math.round(value*1000)/10}% </b> <span style={{color:'grey'}}> (${minimumScore*100}%) </span>`
+}
+const bottomUIPosition = 0.87 / noHeaderSize
+
 /* Canvas Variables */
 let ctx: CanvasRenderingContext2D | null | undefined = canvasElement?.getContext('2d')
 let width = window.innerWidth
@@ -16,218 +33,160 @@ let height = window.innerHeight
 let raycastParamsChanged = true
 
 /* Raycast */
-const raycastAngularResolution = 720;
-const raycastAngularStep = (2*Math.PI / raycastAngularResolution)
-let raycastOriginX = 0
-let raycastOriginY = 0
+let raycastOriginX = -100
+let raycastOriginY = -100
 let tellyVisible: boolean = false
-let raycastVisibilityData: Array<Array<Point>> = new Array(raycastAngularResolution+1)
+
+/* Icon Panel */
+const icons: Array<Icon> = [ // has to match orcer in rooms.ts enum ObjectType
+    new Icon('Mirror', './icons/mirrorIcon.png', ReflectionObjectType.Mirror)
+]
+let iconPanel = new IconPanel(icons)
 
 /* Mouse */
 let mouseX = 0
 let mouseY = 0
 
-/* icons */
-const iconPanelWidth = 100
-const iconPanelHeightPercent = 0.5
-const iconSize = iconPanelWidth * 0.8
-let iconPanelXMiddle = 0
-function updateIconPanelPosition() { iconPanelXMiddle = apartment.positionOriginX - iconPanelWidth }
-function getIconPos(i: number) { return new Point(iconPanelXMiddle-iconSize/2, height*iconPanelHeightPercent/2+i*iconSize) }
-function getIconAtPos(x:number, y:number) { 
-    if (x < iconPanelXMiddle-iconPanelWidth/2 || x > iconPanelXMiddle+iconPanelWidth/2) return -1
-    let yStart = (1-iconPanelHeightPercent)/2*height
-    if (y < (1-iconPanelHeightPercent)/2*height || y > yStart + icons.length*iconSize) return -1
-    return Math.floor((y - yStart) / iconSize)
-}
+/* Level Data */
+let currentLevel = levelManager.getFirst()
 
-const cursorIconPreviewAlpha = 0.33
-class Icon {
-    name: string
-    path: string
-    loaded: boolean
-    displayImg: CanvasImageSource
-    tag: ReflectionObjectType
-
-    constructor(_name:string, _path:string, _tag:ReflectionObjectType) {
-        this.name = _name
-        this.path = _path
-        this.tag = _tag
-        this.loaded = false
-        
-        this.displayImg = new Image()
-        this.displayImg.src = _path
-        this.displayImg.onload = () => { this.loaded = true; };
-        this.displayImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
-    }
-}
-
-const icons: Array<Icon> = [ // has to match orcer in rooms.ts enum ObjectType
-    new Icon('Mirror', './icons/mirrorIcon.png', ReflectionObjectType.Mirror)
-]
-let selectedIcon = -1
-
-// your init logic here
+/* BASIC CONTROL FUNCITONS */
 function init() {
-    /* set looping behaviour */
+    resize()
     setInterval(loop, deltaTime_ms)
 }
-
-// your loop logic here
 function loop() {
-    if (raycastParamsChanged) raycastFromPosition(raycastOriginX,raycastOriginY)
-
-    tellyVisible = apartment.isTellyVisible()
-    setUserMessage(`Telly is ${tellyVisible ? "" : "NOT "} visible ${tellyVisible ? ':)' : ':('}`)
+    if (raycastParamsChanged) {
+        raycastFromPosition(raycastOriginX, raycastOriginY, apartment)
+        tellyVisible = apartment.isTellyVisible()
+        setUserMessage(`Telly is ${tellyVisible ? "" : "NOT "} visible ${tellyVisible ? ':)' : ':('}`)
+    }
 
     draw() 
 }
-
-function raycastFromPosition(x: number, y: number) {
-    apartment.resetVisibilityData()
-    for (let i = 0; i <= raycastAngularResolution; i++) {
-        let angle = i * raycastAngularStep
-        raycastVisibilityData[i] = apartment.getRaycastCollisionPoint(x, y, angle);
-    }   
-}
-
-// your render logic here
 function draw() {
     if (!ctx) return
 
-    // clear canvas
-    
-    //if (raycastParamsChanged) {
-        ctx.clearRect(0,0,width,height)
+    ctx.clearRect(0,0,width,height)
 
-        // draw grey rooms
-        apartment.updateScreenSize(width, height)
-        apartment.drawRooms(ctx, true) 
-    
-        // make hole with raycast
-        ctx.save()
-        ctx.globalCompositeOperation = 'destination-out';
-        drawRaycast(ctx, raycastOriginX, raycastOriginY)
-        ctx.save()
-    
-        // fill empty space with coloured rooms
-        ctx.restore()
-        ctx.globalCompositeOperation = 'destination-over';
-        apartment.drawRooms(ctx, false)
-        ctx.restore()
+    // draw grey rooms
+    apartment.drawRooms(ctx, true) 
 
-        // raycast on top of all
-        // ctx.save()
-        // // ctx.globalCompositeOperation = 'destination-out';
-        // drawRaycast(ctx, raycastOriginX, raycastOriginY)
-        // ctx.save()
-    
-        // draw apartmetn walls
-        apartment.drawObjects(ctx)
-        
-        ctx.beginPath();
-        ctx.arc(raycastOriginX, raycastOriginY, 10, 0, 2*Math.PI);
-        ctx.fillStyle = 'orange';
-        ctx.fill();
-    //}
+    // make hole with raycast
+    ctx.save()
+    ctx.globalCompositeOperation = 'destination-out';
+    drawRaycast(ctx)
+    ctx.save()
+
+    // fill empty space with coloured rooms
+    ctx.restore()
+    ctx.globalCompositeOperation = 'destination-over';
+    apartment.drawRooms(ctx, false)
+    ctx.restore()
+
+    // draw apartmetn objects (walls, furniture)
+    apartment.drawObjects(ctx)
 
     /* Icon Panel */
-    //ctx.clearRect(0,0,iconPanelXMiddle+iconPanelWidth/2,height)
-    updateIconPanelPosition()
-    ctx.beginPath()
-    ctx.arc(iconPanelXMiddle, iconPanelHeightPercent/2*height, iconPanelWidth/2, Math.PI, 2*Math.PI)
-    ctx.lineTo(iconPanelXMiddle+iconPanelWidth/2, (1-iconPanelHeightPercent/2)*height)
-    ctx.arc(iconPanelXMiddle, (1-iconPanelHeightPercent/2)*height, iconPanelWidth/2, 0, Math.PI)
-    ctx.lineTo(iconPanelXMiddle-iconPanelWidth/2, iconPanelHeightPercent/2*height)
-    ctx.fillStyle = '#00000069'
-    ctx.fill()
+    iconPanel.updateIconPanelPosition(apartment)
+    iconPanel.drawPanel(ctx)
+    iconPanel.drawMousePreview(ctx, mouseX, mouseY)
 
-    /* draw icons */
-    icons.forEach((icon,i) => {
-        if (icon.loaded) {
-            let iconPos = getIconPos(i)
-            ctx.drawImage(icon.displayImg, iconPos.x, iconPos.y, iconSize, iconSize)
-
-            // draw outline if selected
-            if (i==selectedIcon) { 
-                ctx.beginPath()
-                ctx.rect(iconPos.x,iconPos.y,iconSize,iconSize)
-                ctx.strokeStyle = 'white'
-                ctx.lineWidth = 2
-                ctx.stroke()
-            }
-        }
-    });
-
-    /* draw mouse icon preview */
-    if (selectedIcon != -1) {
-        const icon = icons[selectedIcon]
-        if (icon && icon.loaded) {
-            ctx.globalAlpha = cursorIconPreviewAlpha
-            ctx.drawImage(icon.displayImg, mouseX, mouseY, iconSize, iconSize)
-            ctx.globalAlpha = 1.0
-        }
+    /* Level ui */
+    if (currentLevel) {
+        currentLevel.drawCleaningPath(ctx, apartment)
     }
+    drawRaycastOrigin(ctx)
+    drawHooveringProgress(ctx)
 
     raycastParamsChanged = false
 }
 
-function drawRaycast(ctx: CanvasRenderingContext2D, x: number, y: number) {
+/* HOOVER LOGIC */
+const hooverTimeSeconds = 3.0 
+const hooveringStepNumber = 100
+const hooveringSingleStep = 1.0 / hooveringStepNumber
+let lastHooveringStep: number = 0
+let isHoovering: boolean = false
+let hooveringStartTime: number = 0
+let hooveringStepsDone = 0
+let tellyVisibleInStepCount: number = 0
+let hooverScore: number = 0
+let hooverProgress: number = 0
+function onStartHooverClicked() {
+    if (isHoovering || !startHooverButton) return;
+    isHoovering = true
+    startHooverButton.innerText = 'hoovering ...'
+    hooveringStartTime = performance.now()
+    tellyVisibleInStepCount = 0
+    lastHooveringStep = 0
+    hooveringStepsDone = 0
+    setTimeout(onHooverEnd, hooverTimeSeconds*1000)
+    hoovering()
+}
+function hoovering() {
+    if (!isHoovering || !currentLevel) return; 
+
+    hooverProgress = Math.min(1, (performance.now()-hooveringStartTime)/(hooverTimeSeconds*1000)) 
+    if (hooverProgress > lastHooveringStep+hooveringSingleStep) {
+        let rayPos = currentLevel.getRaycastPosition(hooverProgress, apartment)
+        raycastFromPosition(rayPos.x, rayPos.y, apartment)
+        tellyVisibleInStepCount += apartment.isTellyVisible() ? 1 : 0
+        hooveringStepsDone += 1
+        lastHooveringStep = hooverProgress
+        setScoreDisplay(tellyVisibleInStepCount/hooveringStepNumber)
+    }
+    requestAnimationFrame(hoovering)
+}
+function onHooverEnd() {
+    if (isHoovering && startHooverButton) {
+        isHoovering = false
+        startHooverButton.innerText = 'Start hoovering'
+        hooverScore = tellyVisibleInStepCount/hooveringStepsDone
+        hooverProgress = 1.0
+        setScoreDisplay(hooverScore)
+
+        if (hooverScore < minimumScore) {
+            setUserMessage(`You missed ${Math.round(Math.random()*1000)} goals, \n your life is ruined, \n and your wife doesn't love you ;[`)
+        } else {
+            setUserMessage("Level cleared! :)")
+        }
+    }
+}
+function drawHooveringProgress(ctx: CanvasRenderingContext2D) {
     if (!ctx) return;
-    if (x==0 && y==0) return
-    
-    ctx.beginPath();
-    
-    raycastVisibilityData.forEach(collisionPoints => {
-        collisionPoints.forEach((p,i) => {ctx.lineTo(p.x, p.y); });
-        ctx.moveTo(x,y)
-    });
 
-    ctx.strokeStyle = 'white'
-    ctx.lineWidth = 3
-    ctx.stroke()
+    let xStart = apartment.positionOriginX
+    let w = apartment.roomSize*apartment.apartWidth
+    let h = 35
+    let yStart = bottomUIPosition * height * 0.9235
 
-    // let closeShapePoint = apartment.getRaycastCollisionPoint(x, y, 0);
-    // ctx.lineTo(closeShapePoint.x, closeShapePoint.y);
-    // Close the shape back to center    
-    // ctx.fillStyle = 'rgba(255, 255, 2555, 1)' // Nice "light" color
-    // ctx.fill()
+    ctx.beginPath()
+    ctx.fillStyle = '#2ba407'
+    ctx.fillRect(xStart, yStart-h/2, w*hooverProgress, h);
 }
 
+/* MOUSE AND WINDOW INTERACTIONS */
 function mouseClick(e: MouseEvent) {
     mouseX = e.offsetX
     mouseY = e.offsetY
-
-    let iconAtPos = getIconAtPos(mouseX, mouseY)
-    if (iconAtPos != -1) { selectedIcon = iconAtPos; return; }
-
-    if (selectedIcon == -1) {
+    
+    if (iconPanel.selectedIcon == -1 && apartment.positionWithinApartmentBounds(mouseX,mouseY)) {
         raycastOriginX = mouseX
         raycastOriginY = mouseY
         raycastParamsChanged = true
-    } else {
-        const icon = icons[selectedIcon]
-        if (icon && apartment.placeObject(icon.tag, mouseX, mouseY)) {
-            selectedIcon = -1 // place object
-            raycastParamsChanged = true
-        }
     }
-
-    if (selectedIcon != -1 && !apartment.positionWithinApartmentBounds(mouseX, mouseY)) selectedIcon = -1
+    raycastParamsChanged ||= iconPanel.processClick(mouseX, mouseY, apartment)
 }
 function mouseMove(e: MouseEvent) {
     mouseX = e.offsetX
     mouseY = e.offsetY
-
-    let iconAtPos = getIconAtPos(mouseX,mouseY) 
-    if (canvasElement) canvasElement.style.cursor = iconAtPos != -1 ? 'pointer' : 'default'
+    if (canvasElement) iconPanel.processMouseMove(mouseX, mouseY, canvasElement)
 }
-
-// your resizing logic here
 function resize() {
     const dpr = window.devicePixelRatio
     const displayWidth = window.innerWidth
-    const displayHeight = window.innerHeight * 0.9 // decrese based on header size
+    const displayHeight = window.innerHeight * noHeaderSize // decrese based on header size
 
     if (canvasElement) {
         width = canvasElement.width = Math.floor(displayWidth * dpr)
@@ -235,6 +194,20 @@ function resize() {
     }
     if(ctx) ctx.scale(dpr, dpr)
     raycastParamsChanged = true
+
+    /* other updates */
+    apartment.updateScreenSize(width, height)
+    iconPanel.updateScreenSize(width, height)
+
+    /* set element posiitons */
+    if (scoreDisplay) {
+        scoreDisplay.style.left = `${width*0.75}px`
+        scoreDisplay.style.top = `${height * bottomUIPosition - 15}px`
+    }
+    if (startHooverButton) {
+        startHooverButton.style.left = `${width * 0.5}px`
+        startHooverButton.style.top = `${height * bottomUIPosition}px`
+    }
 }
 
 window.onload = () => { resize(); init() }
@@ -242,3 +215,5 @@ window.onresize = () => { resize() }
 window.onmousemove = (e) => { mouseMove(e); let objMove = apartment.onMouseMove(e); if(objMove) raycastParamsChanged = true}
 window.onmouseup = (e) => { let objMoved = apartment.onMouseUp(e); if (!objMoved) mouseClick(e); else raycastParamsChanged = true }
 window.onmousedown = (e) => { apartment.onMouseDown(e); }
+
+// 💡😜📺⚽👀🪞🪞🪞

@@ -14,7 +14,6 @@ export declare enum Rooms {
     Bed2 = 7,
     Bed3 = 8
 }
-export declare const roomSize = 125;
 export declare enum ReflectionObjectType {
     Mirror = 0
 }
@@ -76,6 +75,7 @@ declare class HouseObject {
     constructor(_name: string, _path: string, _type: HouseObjectType, houseUV: Point);
     updateHousePosition(newPos: Point): void;
 }
+export declare const defaultTellyPos: Point;
 export declare class Apartment {
     roomPlan: Array<Array<Rooms>>;
     doorsHorizontal: Array<Array<number>>;
@@ -91,6 +91,7 @@ export declare class Apartment {
     houseObjects: Array<HouseObject>;
     screenWidth: number;
     screenHeight: number;
+    roomSize: number;
     constructor(roomPlan: Array<Array<Rooms>>, doorsHorz: Array<Array<number>>, doorsVert: Array<Array<number>>);
     getRaycastCollisionPoint(originX: number, originY: number, angle: number, bounceDepth?: number): Array<Point>;
     resetVisibilityData(): void;
@@ -104,7 +105,7 @@ export declare class Apartment {
     getRoomAtPos(x: number, y: number): Rooms;
     updateScreenSize(w: number, h: number): void;
     isTellyVisible(): boolean;
-    private uvToWorld;
+    uvToWorld(uv: Point): Point;
     onMouseDown(e: MouseEvent): void;
     onMouseUp(e: MouseEvent): boolean;
     onMouseMove(e: MouseEvent): boolean;

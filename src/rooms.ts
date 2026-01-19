@@ -1,3 +1,5 @@
+const apartmentMaxScreenSizePercent = 0.65
+
 export class Point {
     x: number = 0
     y: number = 0
@@ -8,7 +10,6 @@ export class Point {
 }
 
 export enum Rooms { None, Livi, Kitc, Corr, Loo1, Loo2, Bed1, Bed2, Bed3 }
-export const roomSize = 125;
 
 const doorSize = 0.5
 const doorPosition = 0.5
@@ -241,6 +242,7 @@ class HouseObject {
     }
 }  
 
+export const defaultTellyPos = new Point(0.06, 0.06)
 export class Apartment {
     /* Variables */
     roomPlan: Array<Array<Rooms>>
@@ -255,12 +257,14 @@ export class Apartment {
 
     walls: Array<Line> = []
     reflectionObjects: Array<ReflectionObject> = []
-    telly: HouseObject = new HouseObject('tv', './images/telly.png', HouseObjectType.Telly, new Point(0.06, 0.06))
+    telly: HouseObject = new HouseObject('tv', './images/telly.png', HouseObjectType.Telly, defaultTellyPos)
     tellyVisible: boolean = false
     houseObjects: Array<HouseObject> = [ this.telly ]
 
     screenWidth: number = -1
     screenHeight: number = -1
+
+    roomSize: number = 100
     
     /* Constructor */
     constructor (roomPlan: Array<Array<Rooms>>, doorsHorz: Array<Array<number>>, doorsVert: Array<Array<number>>) {
@@ -301,7 +305,7 @@ export class Apartment {
             }
         }
 
-        if (!this.tellyVisible && this.isTellyVisibleFromRay(new Point(originX,originY), closestPoint, this.telly.size.x/2)) this.tellyVisible = true
+        if (!this.tellyVisible && this.isTellyVisibleFromRay(new Point(originX,originY), closestPoint, this.telly.size.x/3)) this.tellyVisible = true
         return [closestPoint];
     }
     resetVisibilityData() {
@@ -338,22 +342,22 @@ export class Apartment {
 
         for (let x=0; x<this.apartWidth; x++) {
             for (let y=0; y<this.apartHeight; y++) {
-                let roomX = this.positionOriginX+x*roomSize
-                let roomY = this.positionOriginY+y*roomSize
+                let roomX = this.positionOriginX+x*this.roomSize
+                let roomY = this.positionOriginY+y*this.roomSize
                 let currentRoom = this.roomPlan[y]?.[x]
                 
                 if (currentRoom !== undefined && currentRoom != Rooms.None) {
                     if (x == 0 || this.roomPlan[y]?.[x-1] != currentRoom){
-                        this.addNewWall( roomX,roomY,roomX, roomY+roomSize, this.doorsVertical[y]?.[x])
+                        this.addNewWall( roomX,roomY,roomX, roomY+this.roomSize, this.doorsVertical[y]?.[x])
                     }
                     if (x == this.apartWidth-1 || this.roomPlan[y]?.[x+1] != currentRoom){
-                        this.addNewWall( roomX+roomSize,roomY,roomX+roomSize, roomY+roomSize, this.doorsVertical[y]?.[x+1])
+                        this.addNewWall( roomX+this.roomSize,roomY,roomX+this.roomSize, roomY+this.roomSize, this.doorsVertical[y]?.[x+1])
                     }
                     if (y == 0 || this.roomPlan[y-1]?.[x] != currentRoom){
-                        this.addNewWall( roomX,roomY,roomX+roomSize, roomY, this.doorsHorizontal[y]?.[x])
+                        this.addNewWall( roomX,roomY,roomX+this.roomSize, roomY, this.doorsHorizontal[y]?.[x])
                     }
                     if (y == this.apartHeight-1 || this.roomPlan[y+1]?.[x] != currentRoom){
-                        this.addNewWall( roomX,roomY+roomSize,roomX+roomSize, roomY+roomSize, this.doorsHorizontal[y+1]?.[x])
+                        this.addNewWall( roomX,roomY+this.roomSize,roomX+this.roomSize, roomY+this.roomSize, this.doorsHorizontal[y+1]?.[x])
                     }
                 }
             }
@@ -380,10 +384,10 @@ export class Apartment {
             for (let y=0; y<this.apartHeight; y++) {
                 
                 /* Draw floor */
-                let roomX = this.positionOriginX+x*roomSize
-                let roomY = this.positionOriginY+y*roomSize
+                let roomX = this.positionOriginX+x*this.roomSize
+                let roomY = this.positionOriginY+y*this.roomSize
                 ctx.beginPath();
-                ctx.rect(roomX, roomY, roomSize * 1.01, roomSize * 1.01)
+                ctx.rect(roomX, roomY, this.roomSize * 1.01, this.roomSize * 1.01)
                 let currentRoom = this.roomPlan[y]?.[x]
 
                 let colour = 'pink'
@@ -430,13 +434,13 @@ export class Apartment {
 
     /* Util */
     positionWithinApartmentBounds(x:number, y:number): boolean {
-        if (x < this.positionOriginX || x > this.positionOriginX + this.apartWidth * roomSize) return false
-        if (y < this.positionOriginY || y > this.positionOriginY + this.apartHeight * roomSize) return false
+        if (x < this.positionOriginX || x > this.positionOriginX + this.apartWidth * this.roomSize) return false
+        if (y < this.positionOriginY || y > this.positionOriginY + this.apartHeight * this.roomSize) return false
         return this.getRoomAtPos(x,y) != Rooms.None
     }
     getRoomAtPos(x:number,y:number): Rooms {
-        let roomX = Math.floor((x-this.positionOriginX) / roomSize)
-        let roomY = Math.floor((y-this.positionOriginY) / roomSize)
+        let roomX = Math.floor((x-this.positionOriginX) / this.roomSize)
+        let roomY = Math.floor((y-this.positionOriginY) / this.roomSize)
         if (roomX < 0 || roomX >= this.apartWidth || roomY < 0 || roomY >= this.apartHeight) return Rooms.None;
         let targetRoom = this.roomPlan[roomY]?.[roomX]
         return targetRoom ? targetRoom : Rooms.None
@@ -445,17 +449,18 @@ export class Apartment {
         if (this.screenWidth != w || this.screenHeight != h) {
             this.screenWidth = w
             this.screenHeight = h
-            this.positionOriginX = this.screenWidth/2 - (this.apartWidth/2)*roomSize
-            this.positionOriginY = this.screenHeight/2 - (this.apartHeight/2)*roomSize
+            this.roomSize = Math.min(apartmentMaxScreenSizePercent*w / this.apartWidth, apartmentMaxScreenSizePercent*h / this.apartHeight)
+            this.positionOriginX = this.screenWidth/2 - (this.apartWidth/2)*this.roomSize
+            this.positionOriginY = this.screenHeight/2 - (this.apartHeight/2)*this.roomSize
             this.generateWallLines()
             this.houseObjects.forEach(ho => { ho.updateHousePosition(this.uvToWorld(ho.uv)) });
         }
     }
     isTellyVisible():boolean { return this.tellyVisible }
-    private uvToWorld(uv: Point): Point {
+    uvToWorld(uv: Point): Point {
         return new Point(
-            this.positionOriginX + uv.x*roomSize*this.apartWidth,
-            this.positionOriginY + uv.y*roomSize*this.apartHeight
+            this.positionOriginX + uv.x*this.roomSize*this.apartWidth,
+            this.positionOriginY + uv.y*this.roomSize*this.apartHeight
         )
     }
 
