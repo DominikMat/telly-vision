@@ -86,6 +86,7 @@ declare class HouseObject {
     loadedGrey: boolean;
     constructor(_name: string, _colourPath: string, _type: HouseObjectType, houseUV: Point, _greyPath?: string, _cenetered?: boolean);
     updateHousePosition(newPos: Point, roomSize: number): void;
+    getCentrePos(roomSize?: number): Point;
 }
 export declare class Apartment {
     roomPlan: Array<Array<Rooms>>;

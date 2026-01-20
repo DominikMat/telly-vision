@@ -1,7 +1,7 @@
 import { apartment, ReflectionObjectType } from './rooms.js';
 import { raycastFromPosition, drawRaycast, drawRaycastOrigin } from './raycast.js';
 import { IconPanel, Icon } from './iconPanel.js';
-import { levelManager } from './levels.js';
+import { levelManager, Level } from './levels.js';
 /* Application configuration */
 const headerSize = 0.1;
 const noHeaderSize = (1 - headerSize);
@@ -38,7 +38,7 @@ const startHooverButton = document.getElementById('startHooverButton');
 if (startHooverButton)
     startHooverButton.onclick = () => { onStartHooverClicked(); };
 /* score display element */
-const minimumScore = 0.5;
+let minimumScore = 0;
 const scoreDisplay = document.getElementById('scoreDisplay');
 function setScoreDisplay(value) {
     if (scoreDisplay) {
@@ -66,12 +66,12 @@ let iconPanel = new IconPanel(icons);
 let mouseX = 0;
 let mouseY = 0;
 /* Level Data */
-let currentLevel = levelManager.getFirst();
+let currentLevel = null;
 /* BASIC CONTROL FUNCITONS */
 function init() {
     resize();
-    setScoreDisplay(0);
     levelSelectUIUpdate();
+    setScoreDisplay(0);
     setInterval(loop, deltaTime_ms);
 }
 function loop() {
@@ -187,7 +187,7 @@ function levelSelectUIUpdate(dir = 0) {
     if (dir != 1 && dir != -1 && dir != 0)
         return;
     /* Change to different level if possible */
-    if (dir != 0 && levelManager.changeCurrentLevel(dir)) {
+    if (currentLevel == null || (dir != 0 && levelManager.changeCurrentLevel(dir))) {
         let lvl = levelManager.getCurrentLevel();
         if (lvl)
             currentLevel = lvl;
@@ -201,6 +201,7 @@ function levelSelectUIUpdate(dir = 0) {
             raycastOriginY = firstPathPoint.y;
             raycastParamsChanged = true;
         }
+        minimumScore = currentLevel.getMinimumScore();
     }
     /* Update level select arrows */
     if (!prevLevelButton || !nextLevelButton)
@@ -218,6 +219,9 @@ function mouseClick(e) {
         raycastParamsChanged = true;
     }
     raycastParamsChanged ||= iconPanel.processClick(mouseX, mouseY, apartment);
+    let uvx = (mouseX - apartment.positionOriginX) / (apartment.roomSize * apartment.apartWidth);
+    let uvy = (mouseY - apartment.positionOriginY) / (apartment.roomSize * apartment.apartHeight);
+    console.log("house pos: " + uvx + ", " + uvy);
 }
 function mouseMove(e) {
     mouseX = e.offsetX;

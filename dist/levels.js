@@ -1,26 +1,29 @@
 import { ReflectionObjectType, Point, Apartment, defaultTellyPos, apartment } from "./rooms.js";
+const defaultMinimumScore = 0.85;
 export class Level {
     pathPoints;
     pathControlPoints;
     maxAvailableReflectionObject = ReflectionObjectType.Mirror;
     tellyPos;
-    constructor(pathPoints, maxAvailableReflectionObject, tellyPos, pathControlPoints = []) {
+    minScore;
+    constructor(pathPoints, maxAvailableReflectionObject, tellyPos, pathControlPoints = [], minScore = defaultMinimumScore) {
         this.pathPoints = pathPoints;
         this.maxAvailableReflectionObject = maxAvailableReflectionObject;
         this.tellyPos = tellyPos;
         this.pathControlPoints = pathControlPoints;
+        this.minScore = minScore;
     }
     drawCleaningPath(ctx, apartment) {
         if (!ctx || this.pathPoints.length == 0)
             return;
         /* Draw poitns */
-        ctx.beginPath();
+        ctx.fillStyle = 'white';
         this.pathPoints.forEach(uv => {
             let p = apartment.uvToWorld(uv);
+            ctx.beginPath();
             ctx.arc(p.x, p.y, 10, 0, 2 * Math.PI);
+            ctx.fill();
         });
-        ctx.fillStyle = 'orange';
-        ctx.fill();
         /* Draw line */
         ctx.beginPath();
         if (this.pathPoints[0]) {
@@ -42,7 +45,7 @@ export class Level {
             else
                 ctx.lineTo(p.x, p.y);
         }
-        ctx.strokeStyle = 'orange';
+        ctx.strokeStyle = 'white';
         //ctx.strokeStyle = 'dashed'
         ctx.lineWidth = 2;
         ctx.stroke();
@@ -82,6 +85,7 @@ export class Level {
         let p = this.pathPoints[0];
         return p ? p : new Point();
     }
+    getMinimumScore() { return this.minScore; }
 }
 export class LevelManager {
     levels;
@@ -90,12 +94,6 @@ export class LevelManager {
     constructor(lvls) {
         this.levels = lvls;
     }
-    getFirst() {
-        if (this.levels.length > 0)
-            return this.levels[0] ? this.levels[0] : null;
-        else
-            return null;
-    }
     getCurrentLevel() {
         if (this.selectedLevel < this.levels.length)
             return this.levels[this.selectedLevel];
@@ -103,14 +101,6 @@ export class LevelManager {
             return null;
     }
     getCurrentLevelIdx() { return this.selectedLevel; }
-    getPrevLevel() {
-        this.selectedLevel = (this.selectedLevel + this.levels.length - 1) % this.levels.length;
-        return this.levels[this.selectedLevel];
-    }
-    getNextLevel() {
-        this.selectedLevel = (this.selectedLevel + 1) % this.levels.length;
-        return this.levels[this.selectedLevel];
-    }
     unlockNextLevel() {
         this.unlockedLevels = Math.min(this.unlockedLevels + 1, this.levels.length);
     }
@@ -129,13 +119,73 @@ export class LevelManager {
     }
 }
 /* cleaning paths */
-let corridorPath = [new Point(0.6, 0.9), new Point(0.6, 0.4)];
-let leftToCorridorPath = [new Point(0.3, 0.95), new Point(0.6, 0.4)];
-let leftToCorridorPathControl = [new Point(0.6, 0.95)];
+// level 1
+const lvl1Path = [
+    new Point(0.8515456506110712, 0.293314162473041),
+    new Point(0.7264557872034508, 0.15672178289000718),
+    new Point(0.49352983465133, 0.45419122933141624),
+    new Point(0.20452911574406904, 0.1621135873472322),
+];
+const lvl1Ctrl = [
+    new Point(0.8968368080517614, 0.1585190510424155),
+    new Point(0.58862688713156, 0.17828900071890724),
+    new Point(0.2304097771387491, 0.34184040258806614),
+];
+// level 2
+const lvl2Path = [
+    new Point(0.20452911574406904, 0.1621135873472322),
+    new Point(0.49352983465133, 0.45419122933141624),
+    new Point(0.5025555839509328, 0.9482920180594598),
+];
+const lvl2Ctrl = [
+    new Point(0.4361104012266803, 0.21995059204361533),
+    new Point(0.5715563506261181, 0.699122582843513),
+];
+// level 3
+const lvl3Path = [
+    new Point(0.5025555839509328, 0.9482920180594598),
+    new Point(0.27255302836698186, 0.7544935684470568),
+    new Point(0.27255302836698186, 0.92699548513502),
+];
+const lvl3Ctrl = [
+    new Point(.5434449271658573, 0.6820853565039612),
+    new Point(0.12432915921288015, 0.8545872731919243),
+];
+// level 4
+const lvl4Path = [
+    new Point(0.27255302836698186, 0.92699548513502),
+    new Point(0.5025555839509328, 0.6948632762586251),
+    new Point(0.6664226031527263, 0.6231802911534154),
+    new Point(0.8066700741119345, 0.7800494079563847),
+    new Point(0.6967799642218246, 0.9120879120879121),
+];
+const lvl4Ctrl = [
+    new Point(0.2597751086123179, 0.7331970355226168),
+    new Point(0.5281114234602606, 0.5393985859102138),
+    new Point(0.6431127012522362, 0.7864383678337167),
+    new Point(0.9651162790697674, 0.9631995911065678),
+];
+// halftime
+const halftime1Path = [
+    new Point(0.6967799642218246, 0.9120879120879121),
+    new Point(0.8066700741119345, 0.7800494079563847),
+    new Point(0.6664226031527263, 0.6231802911534154),
+    new Point(0.6507794531050345, 0.42439730811823834),
+    new Point(1.1465627395859954, 0.40948973507113046),
+];
+const halftime1Ctrl = [
+    new Point(0.9651162790697674, 0.9631995911065678),
+    new Point(0.6431127012522362, 0.7864383678337167),
+    new Point(0.36710963455149503, 0.48615725359911405),
+    new Point(0.8271147457193968, 0.435045574580458),
+];
 /* Level Data */
 let createdLevels = [
-    new Level(corridorPath, ReflectionObjectType.Mirror, defaultTellyPos),
-    new Level(leftToCorridorPath, ReflectionObjectType.Mirror, defaultTellyPos, leftToCorridorPathControl),
+    new Level(lvl1Path, ReflectionObjectType.Mirror, defaultTellyPos, lvl1Ctrl),
+    new Level(lvl2Path, ReflectionObjectType.Mirror, defaultTellyPos, lvl2Ctrl),
+    new Level(lvl3Path, ReflectionObjectType.Mirror, defaultTellyPos, lvl3Ctrl),
+    new Level(lvl4Path, ReflectionObjectType.Mirror, defaultTellyPos, lvl4Ctrl),
+    new Level(halftime1Path, ReflectionObjectType.Mirror, defaultTellyPos, halftime1Ctrl),
 ];
 export let levelManager = new LevelManager(createdLevels);
 //# sourceMappingURL=levels.js.map

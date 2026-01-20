@@ -39,7 +39,7 @@ export function drawRaycastOrigin(ctx) {
     // draw raycast origin point
     ctx.beginPath();
     ctx.arc(raycastOriginX, raycastOriginY, 10, 0, 2 * Math.PI);
-    ctx.fillStyle = 'orange';
+    ctx.fillStyle = 'white';
     ctx.fill();
 }
 //# sourceMappingURL=raycast.js.map

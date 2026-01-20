@@ -263,6 +263,9 @@ class HouseObject {
             this.pos.y -= this.size.y/2*roomSize
         }
     }
+    getCentrePos(roomSize:number = 100): Point {
+        return this.centered ? new Point(this.pos.x+this.size.x/2*roomSize, this.pos.y+this.size.y/2*roomSize) : this.pos
+    }
 }  
 
 export class Apartment {
@@ -330,7 +333,7 @@ export class Apartment {
             }
         }
 
-        if (!this.tellyVisible && this.telly && this.isTellyVisibleFromRay(new Point(originX,originY), closestPoint, this.telly.size.x/3)) this.tellyVisible = true
+        if (!this.tellyVisible && this.telly && this.isTellyVisibleFromRay(new Point(originX,originY), closestPoint, this.telly.size.x/3*this.roomSize)) this.tellyVisible = true
         return [closestPoint];
     }
     resetVisibilityData() {
@@ -338,7 +341,7 @@ export class Apartment {
     }
     isTellyVisibleFromRay(lineStart:Point, lineEnd:Point, minDist: number): boolean {
         if (!this.telly) return false;
-        let tellyCentre = new Point(this.telly.pos.x+this.telly.size.x/2,this.telly.pos.y+this.telly.size.y/2)
+        let tellyCentre = this.telly.getCentrePos(this.roomSize)
 
         // check line points are within point bounding box 
         if (lineStart.x > tellyCentre.x+minDist && lineEnd.x > tellyCentre.x+minDist) return false
@@ -346,6 +349,7 @@ export class Apartment {
         if (lineStart.x < tellyCentre.x-minDist && lineEnd.x < tellyCentre.x-minDist) return false
         if (lineStart.y < tellyCentre.y-minDist && lineEnd.y < tellyCentre.y-minDist) return false
 
+        // use equasion to find smallest distance of point to line
         let dy = lineStart.y - lineEnd.y
         let dx = lineEnd.x - lineStart.x
         let dist = Math.sqrt(dx*dx + dy*dy)
@@ -434,6 +438,12 @@ export class Apartment {
         if (!ctx) return;
         if (this.walls.length == 0) this.generateWallLines()
         
+        /* Draw Reflection Objects */
+        if (!greyscale) {
+            this.reflectionObjects.forEach(obj => {
+                obj.draw(ctx)
+            });
+        }
             
         /* Draw Walls */
         ctx.lineWidth = wallWidth
@@ -467,9 +477,11 @@ export class Apartment {
         }
 
         /* Draw Reflection Objects */
-        this.reflectionObjects.forEach(obj => {
-            obj.draw(ctx)
-        });
+        if (greyscale) {
+            this.reflectionObjects.forEach(obj => {
+                obj.draw(ctx)
+            });
+        }
     }
 
     /* Util */
