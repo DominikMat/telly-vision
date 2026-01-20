@@ -18,6 +18,7 @@ export var Rooms;
     Rooms[Rooms["Bed1"] = 6] = "Bed1";
     Rooms[Rooms["Bed2"] = 7] = "Bed2";
     Rooms[Rooms["Bed3"] = 8] = "Bed3";
+    Rooms[Rooms["Prep"] = 9] = "Prep";
 })(Rooms || (Rooms = {}));
 const doorSize = 0.5;
 const doorPosition = 0.5;
@@ -35,20 +36,23 @@ export var ReflectionObjectType;
 export var HouseObjectType;
 (function (HouseObjectType) {
     HouseObjectType[HouseObjectType["Telly"] = 0] = "Telly";
+    HouseObjectType[HouseObjectType["Sofa"] = 1] = "Sofa";
 })(HouseObjectType || (HouseObjectType = {}));
 const roomColours = [
     /* None */ 'transparent',
-    /* Living Room */ 'pink',
+    /* Living Room */ 'orange',
     /* Kitchen */ 'blue',
     /* Corridor  */ 'yellow',
     /* Loo 1*/ 'skyblue',
     /* Loo 2*/ 'skyblue',
     /* Bedroom 1 */ 'red',
     /* Bedroom 2 */ 'purple',
-    /* Bedroom 3 */ 'orange',
+    /* Bedroom 3 */ 'pink',
+    /* Prep room (at entrance) */ 'purple',
 ];
 const houseObjectsSizes = [
     /* Telly */ new Point(75, 75),
+    /* Sofa */ new Point(250, 135),
 ];
 class Line {
     x1;
@@ -221,30 +225,36 @@ class ReflectionObject {
 }
 class HouseObject {
     name;
-    path;
-    loaded;
-    displayImg;
     type;
     uv = new Point();
     pos = new Point();
     size = new Point(100, 100);
-    constructor(_name, _path, _type, houseUV) {
+    colourImg;
+    loadedColour = false;
+    greyImg = null;
+    loadedGrey = false;
+    constructor(_name, _colourPath, _type, houseUV, _greyPath = '') {
         this.name = _name;
-        this.path = _path;
         this.type = _type;
-        this.loaded = false;
         this.uv = houseUV;
         this.size = houseObjectsSizes[_type] ? houseObjectsSizes[_type] : new Point(100, 100);
-        this.displayImg = new Image();
-        this.displayImg.src = _path;
-        this.displayImg.onload = () => { this.loaded = true; };
-        this.displayImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+        this.colourImg = new Image();
+        this.colourImg.src = _colourPath;
+        this.colourImg.onload = () => { this.loadedColour = true; };
+        this.colourImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+        if (_greyPath != '') {
+            this.greyImg = new Image();
+            this.greyImg.src = _greyPath;
+            this.greyImg.onload = () => { this.loadedGrey = true; };
+            this.greyImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+        }
     }
     updateHousePosition(newPos) {
         this.pos = newPos;
+        this.pos.x -= this.size.x / 2;
+        this.pos.y -= this.size.y / 2;
     }
 }
-export const defaultTellyPos = new Point(0.06, 0.06);
 export class Apartment {
     /* Variables */
     roomPlan;
@@ -256,19 +266,22 @@ export class Apartment {
     positionOriginY = 0;
     walls = [];
     reflectionObjects = [];
-    telly = new HouseObject('tv', './images/telly.png', HouseObjectType.Telly, defaultTellyPos);
+    telly = null;
     tellyVisible = false;
-    houseObjects = [this.telly];
+    houseObjects;
     screenWidth = -1;
     screenHeight = -1;
     roomSize = 100;
     /* Constructor */
-    constructor(roomPlan, doorsHorz, doorsVert) {
+    constructor(roomPlan, doorsHorz, doorsVert, houseObjects) {
         this.roomPlan = roomPlan;
         this.doorsHorizontal = doorsHorz;
         this.doorsVertical = doorsVert;
         this.apartHeight = roomPlan.length;
         this.apartWidth = roomPlan[0]?.length ? roomPlan[0]?.length : 0;
+        this.houseObjects = houseObjects;
+        houseObjects.forEach(ho => { if (ho.type == HouseObjectType.Telly)
+            this.telly = ho; });
     }
     /* Ray casting */
     getRaycastCollisionPoint(originX, originY, angle, bounceDepth = 0) {
@@ -295,7 +308,7 @@ export class Apartment {
                 return currentCollisionPoint.concat(furtherCollisionPoints);
             }
         }
-        if (!this.tellyVisible && this.isTellyVisibleFromRay(new Point(originX, originY), closestPoint, this.telly.size.x / 3))
+        if (!this.tellyVisible && this.telly && this.isTellyVisibleFromRay(new Point(originX, originY), closestPoint, this.telly.size.x / 3))
             this.tellyVisible = true;
         return [closestPoint];
     }
@@ -303,6 +316,8 @@ export class Apartment {
         this.tellyVisible = false;
     }
     isTellyVisibleFromRay(lineStart, lineEnd, minDist) {
+        if (!this.telly)
+            return false;
         let tellyCentre = new Point(this.telly.pos.x + this.telly.size.x / 2, this.telly.pos.y + this.telly.size.y / 2);
         // check line points are within point bounding box 
         if (lineStart.x > tellyCentre.x + minDist && lineEnd.x > tellyCentre.x + minDist)
@@ -366,6 +381,13 @@ export class Apartment {
         }
     }
     /* Render functions */
+    draw(ctx, greyscale) {
+        if (!greyscale)
+            this.drawObjects(ctx, greyscale);
+        this.drawRooms(ctx, greyscale);
+        if (greyscale)
+            this.drawObjects(ctx, greyscale);
+    }
     drawRooms(ctx, greyscale) {
         if (!ctx)
             return;
@@ -391,7 +413,7 @@ export class Apartment {
             }
         }
     }
-    drawObjects(ctx) {
+    drawObjects(ctx, greyscale = false) {
         if (!ctx)
             return;
         if (this.walls.length == 0)
@@ -421,8 +443,8 @@ export class Apartment {
         });
         /* Draw House Objects */
         this.houseObjects.forEach(obj => {
-            if (obj.loaded)
-                ctx.drawImage(obj.displayImg, obj.pos.x, obj.pos.y, obj.size.x, obj.size.y);
+            if (greyscale ? obj.loadedGrey : obj.loadedColour)
+                ctx.drawImage(greyscale && obj.greyImg ? obj.greyImg : obj.colourImg, obj.pos.x, obj.pos.y, obj.size.x, obj.size.y);
         });
         /* Draw Reflection Objects */
         this.reflectionObjects.forEach(obj => {
@@ -487,23 +509,34 @@ export class Apartment {
 }
 /* Apartment 1 configuration */
 const apartmentRoomPlan1 = [
-    [Rooms.Kitc, Rooms.Kitc, Rooms.Corr, Rooms.None],
-    [Rooms.Bed1, Rooms.Bed1, Rooms.Corr, Rooms.None],
-    [Rooms.Livi, Rooms.Livi, Rooms.Corr, Rooms.Loo1],
-    [Rooms.Livi, Rooms.Livi, Rooms.Corr, Rooms.Loo1],
+    [Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi],
+    [Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi],
+    [Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi],
+    [Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Bed1, Rooms.Bed1],
+    [Rooms.Loo2, Rooms.Loo2, Rooms.Livi, Rooms.Bed1, Rooms.Bed1],
+    [Rooms.Loo2, Rooms.Loo2, Rooms.Prep, Rooms.Loo1, Rooms.Loo1],
 ];
 const apartmentDoorsH1 = [
-    [0, 0, 0, 0],
-    [0, 0, 0, 0],
-    [0, 0, 0, 0],
-    [0, 0, 0, 0],
-    [0, 0, 1, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 1, 0, 1],
+    [0, 0, 1, 0, 0],
 ];
 const apartmentDoorsV1 = [
-    [0, 0, 1, 0, 0],
-    [0, 0, 1, 0, 0],
-    [0, 0, 0, 1, 0],
-    [0, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0],
 ];
-export let apartment = new Apartment(apartmentRoomPlan1, apartmentDoorsH1, apartmentDoorsV1);
+export const defaultTellyPos = new Point(0.8, 1 / 16);
+let houseObjects = [
+    new HouseObject('tv', './images/telly_col.png', HouseObjectType.Telly, defaultTellyPos, './images/telly_grey.png'),
+    new HouseObject('sofa', './images/sofa_col.png', HouseObjectType.Sofa, new Point(0.8, .3), './images/sofa_grey.png')
+];
+export let apartment = new Apartment(apartmentRoomPlan1, apartmentDoorsH1, apartmentDoorsV1, houseObjects);
 //# sourceMappingURL=rooms.js.map

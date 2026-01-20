@@ -76,6 +76,12 @@ export class Level {
             return new Point(lerpL.x * invT + lertR.x * t, lerpL.y * invT + lertR.y * t);
         }
     }
+    getFirstPathPoint() {
+        if (!this.pathPoints || this.pathPoints.length == 0)
+            return new Point();
+        let p = this.pathPoints[0];
+        return p ? p : new Point();
+    }
 }
 export class LevelManager {
     levels;

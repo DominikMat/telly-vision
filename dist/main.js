@@ -27,14 +27,18 @@ if (nextLevelButton)
     nextLevelButton.onclick = () => { levelSelectUIUpdate(1); };
 /* user message element */
 const userMessage = document.getElementById('userMessage');
-function setUserMessage(text) { if (userMessage)
-    userMessage.innerText = text; }
+function setUserMessage(text, err = false) {
+    if (!userMessage)
+        return;
+    userMessage.style.color = err ? 'red' : 'white';
+    userMessage.innerText = text;
+}
 /* start hoover button element */
 const startHooverButton = document.getElementById('startHooverButton');
 if (startHooverButton)
     startHooverButton.onclick = () => { onStartHooverClicked(); };
 /* score display element */
-const minimumScore = 0.0;
+const minimumScore = 0.5;
 const scoreDisplay = document.getElementById('scoreDisplay');
 function setScoreDisplay(value) {
     if (scoreDisplay) {
@@ -74,7 +78,7 @@ function loop() {
     if (raycastParamsChanged) {
         raycastFromPosition(raycastOriginX, raycastOriginY, apartment);
         tellyVisible = apartment.isTellyVisible();
-        setUserMessage(`Telly is ${tellyVisible ? "" : "NOT "} visible ${tellyVisible ? ':)' : ':('}`);
+        setUserMessage(`\n\nTelly is ${tellyVisible ? "" : "NOT "} visible ${tellyVisible ? ':)' : ':('}`);
     }
     draw();
 }
@@ -83,7 +87,7 @@ function draw() {
         return;
     ctx.clearRect(0, 0, width, height);
     // draw grey rooms
-    apartment.drawRooms(ctx, true);
+    apartment.draw(ctx, true);
     // make hole with raycast
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
@@ -92,10 +96,10 @@ function draw() {
     // fill empty space with coloured rooms
     ctx.restore();
     ctx.globalCompositeOperation = 'destination-over';
-    apartment.drawRooms(ctx, false);
+    apartment.draw(ctx, false);
     ctx.restore();
     // draw apartmetn objects (walls, furniture)
-    apartment.drawObjects(ctx);
+    // apartment.drawObjects(ctx)
     /* Icon Panel */
     iconPanel.updateIconPanelPosition(apartment);
     iconPanel.drawPanel(ctx);
@@ -138,10 +142,12 @@ function hoovering() {
     if (hooverProgress > lastHooveringStep + hooveringSingleStep) {
         let rayPos = currentLevel.getRaycastPosition(hooverProgress, apartment);
         raycastFromPosition(rayPos.x, rayPos.y, apartment);
-        tellyVisibleInStepCount += apartment.isTellyVisible() ? 1 : 0;
+        tellyVisible = apartment.isTellyVisible();
+        tellyVisibleInStepCount += tellyVisible ? 1 : 0;
         hooveringStepsDone += 1;
         lastHooveringStep = hooverProgress;
         setScoreDisplay(tellyVisibleInStepCount / hooveringStepNumber);
+        setUserMessage(`\n\nTelly is ${tellyVisible ? "" : "NOT "} visible ${tellyVisible ? ':)' : ':('}`);
     }
     requestAnimationFrame(hoovering);
 }
@@ -153,7 +159,10 @@ function onHooverEnd() {
         hooverProgress = 1.0;
         setScoreDisplay(hooverScore);
         if (hooverScore < minimumScore) {
-            setUserMessage(`You missed ${Math.round(Math.random() * 1000)} goals, \n your life is ruined, \n and your wife doesn't love you ;[`);
+            setUserMessage(`You probably missed ${Math.round(Math.random() * 10000)} amazing goals, 
+                now your wife doesn't love you,
+                and your life is ruined :[
+                (you also have lung cancer)`, true);
         }
         else {
             setUserMessage("Level cleared! :)");
@@ -177,13 +186,23 @@ function drawHooveringProgress(ctx) {
 function levelSelectUIUpdate(dir = 0) {
     if (dir != 1 && dir != -1 && dir != 0)
         return;
+    /* Change to different level if possible */
     if (dir != 0 && levelManager.changeCurrentLevel(dir)) {
         let lvl = levelManager.getCurrentLevel();
         if (lvl)
             currentLevel = lvl;
+        /* set new level number ui */
         let currLvlIdx = levelManager.getCurrentLevelIdx();
         setCurrentLevelDisplay(currLvlIdx * 15, currLvlIdx + 1);
+        /* update raycast data for new level */
+        if (currentLevel) {
+            let firstPathPoint = apartment.uvToWorld(currentLevel.getFirstPathPoint());
+            raycastOriginX = firstPathPoint.x;
+            raycastOriginY = firstPathPoint.y;
+            raycastParamsChanged = true;
+        }
     }
+    /* Update level select arrows */
     if (!prevLevelButton || !nextLevelButton)
         return;
     prevLevelButton.style.opacity = `${levelManager.isPrevLevelUnlocked() ? 1 : 0}`;
@@ -203,6 +222,7 @@ function mouseClick(e) {
 function mouseMove(e) {
     mouseX = e.offsetX;
     mouseY = e.offsetY;
+    console.log(mouseX + ", " + mouseY);
     if (canvasElement)
         iconPanel.processMouseMove(mouseX, mouseY, canvasElement);
 }
@@ -222,12 +242,12 @@ function resize() {
     iconPanel.updateScreenSize(width, height);
     /* set element posiitons */
     if (scoreDisplay) {
-        scoreDisplay.style.left = `${width * 0.75}px`;
-        scoreDisplay.style.top = `${height * bottomUIPosition - 15}px`;
+        scoreDisplay.style.left = `${apartment.positionOriginX + apartment.roomSize * apartment.apartWidth}px`;
+        scoreDisplay.style.top = `${height * bottomUIPosition}px`;
     }
     if (startHooverButton) {
         startHooverButton.style.left = `${width * 0.5}px`;
-        startHooverButton.style.top = `${height * bottomUIPosition}px`;
+        startHooverButton.style.top = `${height * bottomUIPosition + 20}px`;
     }
 }
 window.onload = () => { resize(); init(); };

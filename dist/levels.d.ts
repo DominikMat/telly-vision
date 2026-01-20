@@ -7,6 +7,7 @@ export declare class Level {
     constructor(pathPoints: Array<Point>, maxAvailableReflectionObject: ReflectionObjectType, tellyPos: Point, pathControlPoints?: Array<Point>);
     drawCleaningPath(ctx: CanvasRenderingContext2D, apartment: Apartment): void;
     getRaycastPosition(progress: number, apartment: Apartment): Point;
+    getFirstPathPoint(): Point;
 }
 export declare class LevelManager {
     levels: Array<Level>;

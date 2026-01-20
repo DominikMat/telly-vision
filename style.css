@@ -55,9 +55,10 @@ canvas {
 #userMessage {
     position: absolute;
     color: white;
-    top: 16.5vh;
+    top: 15.5vh;
     left: 50vw;
     transform: translate(-50%,0);
+    text-align: center;
 }
 
 /* ========================================================= */
@@ -71,9 +72,10 @@ canvas {
     left: 50vw;
 }
 #plotImage {
-    opacity: 0; /* temporary */
+    opacity: 0.25; /* temporary */
     width: 50vh;
     height: auto;
+    margin-left: 600px;
     background-color: white;
     z-index: 0;
 }
@@ -85,7 +87,7 @@ canvas {
 #startHooverButton {
     position: absolute;
     color: white;
-    transform: translate(-50%,0);
+    transform: translate(-50%,-50%);
     background-color: #000000aa;
     border-radius: 25px;
     border-color: transparent;
@@ -96,5 +98,7 @@ canvas {
     position: absolute;
     font-size: x-large;
     color: white;
-    transform: translate(-50%,0);
+    transform: translate(-100%,-50%);
+    background-color: #000000aa;
+    padding: 10px;
 }

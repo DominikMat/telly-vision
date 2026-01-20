@@ -9,7 +9,7 @@ export class Point {
     }
 }
 
-export enum Rooms { None, Livi, Kitc, Corr, Loo1, Loo2, Bed1, Bed2, Bed3 }
+export enum Rooms { None, Livi, Kitc, Corr, Loo1, Loo2, Bed1, Bed2, Bed3, Prep }
 
 const doorSize = 0.5
 const doorPosition = 0.5
@@ -24,21 +24,23 @@ const rotaionHandleDistMult = 0.67
 const objectHandleInteractionDistance = rotaionHandleDistMult*reflectionObjectSize / 3
 
 export enum ReflectionObjectType { Mirror }
-export enum HouseObjectType { Telly }
+export enum HouseObjectType { Telly, Sofa }
 
 const roomColours: Array<string> = [
     /* None */ 'transparent',
-    /* Living Room */ 'pink',
+    /* Living Room */ 'orange',
     /* Kitchen */ 'blue',
     /* Corridor  */ 'yellow',
     /* Loo 1*/ 'skyblue',
     /* Loo 2*/ 'skyblue',
     /* Bedroom 1 */ 'red',
     /* Bedroom 2 */ 'purple',
-    /* Bedroom 3 */ 'orange',
+    /* Bedroom 3 */ 'pink',
+    /* Prep room (at entrance) */ 'purple',
 ]
 const houseObjectsSizes: Array<Point> = [
     /* Telly */ new Point(75,75),
+    /* Sofa */ new Point(250,135),
 ]
 
 class Line {
@@ -216,33 +218,41 @@ class ReflectionObject {
 
 class HouseObject {
     name: string
-    path: string
-    loaded: boolean
-    displayImg: CanvasImageSource
     type: HouseObjectType
     uv: Point = new Point()
     pos: Point = new Point()
     size: Point = new Point(100,100)
 
-    constructor(_name:string, _path:string, _type:HouseObjectType, houseUV: Point) {
+    colourImg: CanvasImageSource
+    loadedColour: boolean = false
+    greyImg: CanvasImageSource | null = null
+    loadedGrey: boolean = false
+
+    constructor(_name:string, _colourPath:string, _type:HouseObjectType, houseUV: Point, _greyPath:string='') {
         this.name = _name
-        this.path = _path
         this.type = _type
-        this.loaded = false
         this.uv = houseUV
         this.size = houseObjectsSizes[_type] ? houseObjectsSizes[_type] : new Point(100,100)
         
-        this.displayImg = new Image()
-        this.displayImg.src = _path
-        this.displayImg.onload = () => { this.loaded = true; };
-        this.displayImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+        this.colourImg = new Image()
+        this.colourImg.src = _colourPath
+        this.colourImg.onload = () => { this.loadedColour = true; };
+        this.colourImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+
+        if (_greyPath != '') {
+            this.greyImg = new Image()
+            this.greyImg.src = _greyPath
+            this.greyImg.onload = () => { this.loadedGrey = true; };
+            this.greyImg.onerror = (e) => { console.error(this.name, ' Icon loading error: ', e); };
+        }
     }
     updateHousePosition(newPos: Point) {
         this.pos = newPos
+        this.pos.x -= this.size.x/2
+        this.pos.y -= this.size.y/2
     }
 }  
 
-export const defaultTellyPos = new Point(0.06, 0.06)
 export class Apartment {
     /* Variables */
     roomPlan: Array<Array<Rooms>>
@@ -257,9 +267,9 @@ export class Apartment {
 
     walls: Array<Line> = []
     reflectionObjects: Array<ReflectionObject> = []
-    telly: HouseObject = new HouseObject('tv', './images/telly.png', HouseObjectType.Telly, defaultTellyPos)
+    telly: HouseObject | null = null
     tellyVisible: boolean = false
-    houseObjects: Array<HouseObject> = [ this.telly ]
+    houseObjects: Array<HouseObject>
 
     screenWidth: number = -1
     screenHeight: number = -1
@@ -267,13 +277,16 @@ export class Apartment {
     roomSize: number = 100
     
     /* Constructor */
-    constructor (roomPlan: Array<Array<Rooms>>, doorsHorz: Array<Array<number>>, doorsVert: Array<Array<number>>) {
+    constructor (roomPlan: Array<Array<Rooms>>, doorsHorz: Array<Array<number>>, doorsVert: Array<Array<number>>, houseObjects: Array<HouseObject>) {
         this.roomPlan = roomPlan
         this.doorsHorizontal = doorsHorz
         this.doorsVertical = doorsVert
 
         this.apartHeight = roomPlan.length;
         this.apartWidth = roomPlan[0]?.length ? roomPlan[0]?.length : 0;
+
+        this.houseObjects = houseObjects;
+        houseObjects.forEach(ho => { if (ho.type == HouseObjectType.Telly) this.telly = ho });
     }
 
     /* Ray casting */
@@ -305,13 +318,14 @@ export class Apartment {
             }
         }
 
-        if (!this.tellyVisible && this.isTellyVisibleFromRay(new Point(originX,originY), closestPoint, this.telly.size.x/3)) this.tellyVisible = true
+        if (!this.tellyVisible && this.telly && this.isTellyVisibleFromRay(new Point(originX,originY), closestPoint, this.telly.size.x/3)) this.tellyVisible = true
         return [closestPoint];
     }
     resetVisibilityData() {
         this.tellyVisible = false
     }
     isTellyVisibleFromRay(lineStart:Point, lineEnd:Point, minDist: number): boolean {
+        if (!this.telly) return false;
         let tellyCentre = new Point(this.telly.pos.x+this.telly.size.x/2,this.telly.pos.y+this.telly.size.y/2)
 
         // check line points are within point bounding box 
@@ -376,6 +390,11 @@ export class Apartment {
     }
 
     /* Render functions */
+    draw(ctx: CanvasRenderingContext2D, greyscale: boolean) {
+        if (!greyscale) this.drawObjects(ctx, greyscale)
+        this.drawRooms(ctx, greyscale);
+        if (greyscale) this.drawObjects(ctx, greyscale)
+    }
     drawRooms(ctx: CanvasRenderingContext2D, greyscale: boolean) {
         if (!ctx) return;
         if (this.roomPlan === undefined|| this.roomPlan.length == 0) return; 
@@ -399,7 +418,7 @@ export class Apartment {
             }
         }
     }
-    drawObjects(ctx: CanvasRenderingContext2D) {
+    drawObjects(ctx: CanvasRenderingContext2D, greyscale: boolean = false) {
         if (!ctx) return;
         if (this.walls.length == 0) this.generateWallLines()
         
@@ -423,7 +442,8 @@ export class Apartment {
 
         /* Draw House Objects */
         this.houseObjects.forEach(obj => {
-            if (obj.loaded) ctx.drawImage(obj.displayImg, obj.pos.x, obj.pos.y, obj.size.x, obj.size.y)
+            if (greyscale ? obj.loadedGrey : obj.loadedColour) 
+                ctx.drawImage(greyscale && obj.greyImg ? obj.greyImg : obj.colourImg, obj.pos.x, obj.pos.y, obj.size.x, obj.size.y)
         });
 
         /* Draw Reflection Objects */
@@ -490,22 +510,34 @@ export class Apartment {
 
 /* Apartment 1 configuration */
 const apartmentRoomPlan1: Array<Array<Rooms>> = [
-    [ Rooms.Kitc, Rooms.Kitc, Rooms.Corr, Rooms.None ],
-    [ Rooms.Bed1, Rooms.Bed1, Rooms.Corr, Rooms.None ],
-    [ Rooms.Livi, Rooms.Livi, Rooms.Corr, Rooms.Loo1 ],
-    [ Rooms.Livi, Rooms.Livi, Rooms.Corr, Rooms.Loo1 ],
+    [ Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi ],
+    [ Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi ],
+    [ Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Livi ],
+    [ Rooms.Livi, Rooms.Livi, Rooms.Livi, Rooms.Bed1, Rooms.Bed1 ],
+    [ Rooms.Loo2, Rooms.Loo2, Rooms.Livi, Rooms.Bed1, Rooms.Bed1 ],
+    [ Rooms.Loo2, Rooms.Loo2, Rooms.Prep, Rooms.Loo1, Rooms.Loo1 ],
 ]
 const apartmentDoorsH1: Array<Array<number>> = [
-    [ 0,0,0,0 ],
-    [ 0,0,0,0 ],
-    [ 0,0,0,0 ],
-    [ 0,0,0,0 ],
-    [ 0,0,1,0 ],
+    [ 0,0,0,0,0 ],
+    [ 0,0,0,0,0 ],
+    [ 0,0,0,0,0 ],
+    [ 0,0,0,0,0 ],
+    [ 0,0,0,0,0 ],
+    [ 0,0,1,0,1 ],
+    [ 0,0,1,0,0 ],
 ]
 const apartmentDoorsV1: Array<Array<number>> = [
-    [ 0,0,1,0,0 ],
-    [ 0,0,1,0,0 ],
-    [ 0,0,0,1,0 ],
-    [ 0,0,1,0,0 ],
+    [ 0,0,0,0,0,0 ],
+    [ 0,0,0,0,0,0 ],
+    [ 0,0,0,0,0,0 ],
+    [ 0,0,0,1,0,0 ],
+    [ 0,0,1,0,0,0 ],
+    [ 0,0,0,0,0,0 ],
 ]
-export let apartment = new Apartment(apartmentRoomPlan1,apartmentDoorsH1,apartmentDoorsV1)
+
+export const defaultTellyPos = new Point(0.8, 1/16)
+let houseObjects: Array<HouseObject> = [
+    new HouseObject('tv', './images/telly_col.png', HouseObjectType.Telly, defaultTellyPos, './images/telly_grey.png'),
+    new HouseObject('sofa', './images/sofa_col.png', HouseObjectType.Sofa, new Point(0.8,.3), './images/sofa_grey.png')
+]
+export let apartment = new Apartment(apartmentRoomPlan1,apartmentDoorsH1,apartmentDoorsV1,houseObjects)
