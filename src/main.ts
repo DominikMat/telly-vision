@@ -10,19 +10,38 @@ const canvasElement: HTMLCanvasElement | null = document.querySelector('canvas')
 const targetFps = 60
 const deltaTime_ms = 1000 / targetFps
 
+/* Level select ui */
+const currentLevelDisplay = document.getElementById('levelDisplay')
+function setCurrentLevelDisplay(timeMinutes:number, lvl:number) {
+    if (!currentLevelDisplay) return;
+    let hour = timeMinutes >= 60 ? 6 : 5
+    timeMinutes %= 60
+    let scoreStr = `<b> Time: ${hour}:${timeMinutes<10?'0':''}${timeMinutes} </b>`
+    let minScoreStr = `<span class='lesserText'> (Level ${lvl}) </span>`
+    currentLevelDisplay.innerHTML = scoreStr + minScoreStr
+}
+const prevLevelButton = document.getElementById('lvlSelectArrowPrev') as HTMLButtonElement
+const nextLevelButton = document.getElementById('lvlSelectArrowNext') as HTMLButtonElement
+if (prevLevelButton) prevLevelButton.onclick = () => { levelSelectUIUpdate(-1) }
+if (nextLevelButton) nextLevelButton.onclick = () => { levelSelectUIUpdate(1) }
+
 /* user message element */
 const userMessage: HTMLElement | null = document.getElementById('userMessage')
 function setUserMessage(text: string) { if (userMessage) userMessage.innerText = text }
 
 /* start hoover button element */
-const startHooverButton: HTMLButtonElement | null = document.querySelector('button')
+const startHooverButton: HTMLButtonElement | null = document.getElementById('startHooverButton') as HTMLButtonElement
 if (startHooverButton) startHooverButton.onclick = () => { onStartHooverClicked() }
 
 /* score display element */
-const minimumScore = 0.95
+const minimumScore = 0.0
 const scoreDisplay: HTMLElement | null = document.getElementById('scoreDisplay')
 function setScoreDisplay(value: number) { 
-    if (scoreDisplay) scoreDisplay.innerHTML = `<b style={{color:'white'}}> ${Math.round(value*1000)/10}% </b> <span style={{color:'grey'}}> (${minimumScore*100}%) </span>`
+    if (scoreDisplay) {
+        let scoreStr = `<b> ${Math.round(value*1000)/10}% </b>`
+        let minScoreStr = `<span class='lesserText'> (>${minimumScore*100}%) </span>`
+        scoreDisplay.innerHTML = scoreStr + minScoreStr
+    }
 }
 const bottomUIPosition = 0.87 / noHeaderSize
 
@@ -53,6 +72,8 @@ let currentLevel = levelManager.getFirst()
 /* BASIC CONTROL FUNCITONS */
 function init() {
     resize()
+    setScoreDisplay(0)
+    levelSelectUIUpdate()
     setInterval(loop, deltaTime_ms)
 }
 function loop() {
@@ -150,6 +171,8 @@ function onHooverEnd() {
             setUserMessage(`You missed ${Math.round(Math.random()*1000)} goals, \n your life is ruined, \n and your wife doesn't love you ;[`)
         } else {
             setUserMessage("Level cleared! :)")
+            levelManager.unlockNextLevel()
+            levelSelectUIUpdate()
         }
     }
 }
@@ -164,6 +187,22 @@ function drawHooveringProgress(ctx: CanvasRenderingContext2D) {
     ctx.beginPath()
     ctx.fillStyle = '#2ba407'
     ctx.fillRect(xStart, yStart-h/2, w*hooverProgress, h);
+}
+
+/* Level selection */
+function levelSelectUIUpdate(dir: number = 0) {
+    if (dir != 1 && dir != -1 && dir != 0) return;
+    
+    if (dir != 0 && levelManager.changeCurrentLevel(dir)) {
+        let lvl = levelManager.getCurrentLevel()
+        if (lvl) currentLevel = lvl
+        let currLvlIdx = levelManager.getCurrentLevelIdx()
+        setCurrentLevelDisplay(currLvlIdx*15, currLvlIdx+1)
+    } 
+    
+    if (!prevLevelButton || !nextLevelButton) return;
+    prevLevelButton.style.opacity = `${levelManager.isPrevLevelUnlocked() ? 1 : 0}`
+    nextLevelButton.style.opacity = `${levelManager.isNextLevelUnlocked() ? 1 : 0}`
 }
 
 /* MOUSE AND WINDOW INTERACTIONS */

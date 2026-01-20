@@ -11,9 +11,17 @@ export declare class Level {
 export declare class LevelManager {
     levels: Array<Level>;
     selectedLevel: number;
+    unlockedLevels: number;
     constructor(lvls: Array<Level>);
     getFirst(): Level | null;
     getCurrentLevel(): Level | null | undefined;
+    getCurrentLevelIdx(): number;
+    getPrevLevel(): Level | undefined;
+    getNextLevel(): Level | undefined;
+    unlockNextLevel(): void;
+    isPrevLevelUnlocked(): boolean;
+    isNextLevelUnlocked(): boolean;
+    changeCurrentLevel(dir: number): Level | undefined;
 }
 export declare let levelManager: LevelManager;
 //# sourceMappingURL=levels.d.ts.map

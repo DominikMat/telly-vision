@@ -5,75 +5,30 @@
     <meta charset="UTF - 8">
     <meta name="viewport" content="width=device - width, initial - scale=1.0">
     <title>Telly-vision</title>
-    <style> 
-        header {
-            background-color: darkcyan;
-            color: white;
-            padding: 20px;
-            text-align: center;
-            font-size:larger;
-            height: 5vh;
-        }
-        body {
-            margin: 0px;
-            background-color: rgb(39, 39, 39);
-        }
-        canvas {
-            width: 100vw;
-            height: 90vh;
-            background-color: rgb(39, 39, 39);
-        }
-        #userMessage {
-            position: absolute;
-            color: white;
-            top: 16.5vh;
-            left: 50vw;
-            transform: translate(-50%,0);
-        }
-        #levelDisplay {
-            position: absolute;
-            font-size: xx-large;
-            color: white;
-            transform: translate(-50%,0);
-            top: 10vh;
-            left: 50vw;
-        }
-        img {
-            position: absolute;
-            right: 2vw;
-            top: 20vh;
-            width: 25vh;
-            background-color: white;
-            z-index: 0;
-        }
-        #startButton {
-            position: absolute;
-            color: white;
-            transform: translate(-50%,0);
-            background-color: transparent;
-            border-color: 'white';
-            border-radius: 5px;
-            padding: 10px;
-            font-size: larger;
-        }
-        #scoreDisplay {
-            position: absolute;
-            font-size: x-large;
-            color: white;
-            transform: translate(-50%,0);
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
  
 <body>
+    <!-- HEADER -->
     <header> <b> Telly-vision </b> by Dominik Mat </header>
+
+    <!-- MAIN CANVAS AND CODE -->
     <canvas id="canvas"> </canvas>
     <script type="module" src="./dist/main.js"></script>
-    <img src="./images/plot.png" alt='plot image'>
-    <p id="levelDisplay"> <b> Time: 5:00 </b> (Level 1) </p>
+
+    <!-- PLOT IMAGE -->
+    <img id="plotImage" class='centralDisplay' src="./images/plot.png" alt='plot image'>
+
+    <!-- LEVEL SELECTION (UI ABOVE) -->
+    <div id="levelWindow"> 
+        <button id="lvlSelectArrowPrev" class="lvlSelectArrow"> &larr; </button>
+        <p id="levelDisplay"> <b> Time: 5:00 </b> <span class="lesserText"> (Level 1) </span> </p>
+        <button id="lvlSelectArrowNext" class="lvlSelectArrow"> &rarr; </button>
+    </div>
     <p id="userMessage"> default message </p>
     
-    <button id="startButton"> Start hoovering </button>
+    <!-- HOOVERING AND SCORE (UI BELOW) -->
+    <button id="startHooverButton"> Start hoovering </button>
     <p id="scoreDisplay"> 78% </p>
 
 </body>

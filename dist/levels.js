@@ -80,6 +80,7 @@ export class Level {
 export class LevelManager {
     levels;
     selectedLevel = 0;
+    unlockedLevels = 1;
     constructor(lvls) {
         this.levels = lvls;
     }
@@ -95,12 +96,40 @@ export class LevelManager {
         else
             return null;
     }
+    getCurrentLevelIdx() { return this.selectedLevel; }
+    getPrevLevel() {
+        this.selectedLevel = (this.selectedLevel + this.levels.length - 1) % this.levels.length;
+        return this.levels[this.selectedLevel];
+    }
+    getNextLevel() {
+        this.selectedLevel = (this.selectedLevel + 1) % this.levels.length;
+        return this.levels[this.selectedLevel];
+    }
+    unlockNextLevel() {
+        this.unlockedLevels = Math.min(this.unlockedLevels + 1, this.levels.length);
+    }
+    isPrevLevelUnlocked() {
+        return this.selectedLevel - 1 >= 0;
+    }
+    isNextLevelUnlocked() {
+        return this.unlockedLevels > (this.selectedLevel + 1);
+    }
+    changeCurrentLevel(dir) {
+        if (dir == 1 && this.isNextLevelUnlocked())
+            this.selectedLevel += 1;
+        if (dir == -1 && this.selectedLevel > 0)
+            this.selectedLevel -= 1;
+        return this.levels[this.selectedLevel];
+    }
 }
 /* cleaning paths */
 let corridorPath = [new Point(0.6, 0.9), new Point(0.6, 0.4)];
+let leftToCorridorPath = [new Point(0.3, 0.95), new Point(0.6, 0.4)];
+let leftToCorridorPathControl = [new Point(0.6, 0.95)];
 /* Level Data */
 let createdLevels = [
-    new Level(corridorPath, ReflectionObjectType.Mirror, defaultTellyPos)
+    new Level(corridorPath, ReflectionObjectType.Mirror, defaultTellyPos),
+    new Level(leftToCorridorPath, ReflectionObjectType.Mirror, defaultTellyPos, leftToCorridorPathControl),
 ];
 export let levelManager = new LevelManager(createdLevels);
 //# sourceMappingURL=levels.js.map

@@ -1,0 +1,100 @@
+
+/* ========================================================= */
+/* MAIN WEBSITE ELEMENTS */
+/* ========================================================= */
+
+header {
+    background-color: darkcyan;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    font-size:larger;
+    height: 5vh;
+}
+body {
+    margin: 0px;
+    background-color: rgb(39, 39, 39);
+}
+canvas {
+    width: 100vw;
+    height: 90vh;
+    background-color: rgb(39, 39, 39);
+}
+
+/* ========================================================= */
+/* MULTIPLE USE CLASSES */
+/* ========================================================= */
+
+.lesserText {
+    color: lightgrey;
+    font-size: large;
+}
+.lvlSelectArrow {
+    background-color: transparent;
+    border: none;
+    color: white;
+    font-size: x-large;
+    cursor: pointer;
+}
+
+/* ========================================================= */
+/* UPPER UI ELEMENTS */
+/* ========================================================= */
+
+#levelWindow {
+    position: absolute;
+    font-size: xx-large;
+    color: white;
+    transform: translate(-50%,0);
+    top: 10vh;
+    left: 50vw;
+    display: flex;
+    flex-direction: row;
+    gap: 35px;
+}
+#userMessage {
+    position: absolute;
+    color: white;
+    top: 16.5vh;
+    left: 50vw;
+    transform: translate(-50%,0);
+}
+
+/* ========================================================= */
+/* CENTRAL UI ELEMENTS */
+/* ========================================================= */
+
+.centralDisplay {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    top: 50vh;
+    left: 50vw;
+}
+#plotImage {
+    opacity: 0; /* temporary */
+    width: 50vh;
+    height: auto;
+    background-color: white;
+    z-index: 0;
+}
+
+/* ========================================================= */
+/* LOWER UI ELEMENTS */
+/* ========================================================= */
+
+#startHooverButton {
+    position: absolute;
+    color: white;
+    transform: translate(-50%,0);
+    background-color: #000000aa;
+    border-radius: 25px;
+    border-color: transparent;
+    padding: 10px;
+    font-size: larger;
+}
+#scoreDisplay {
+    position: absolute;
+    font-size: x-large;
+    color: white;
+    transform: translate(-50%,0);
+}
