@@ -222,7 +222,6 @@ function mouseClick(e) {
 function mouseMove(e) {
     mouseX = e.offsetX;
     mouseY = e.offsetY;
-    console.log(mouseX + ", " + mouseY);
     if (canvasElement)
         iconPanel.processMouseMove(mouseX, mouseY, canvasElement);
 }

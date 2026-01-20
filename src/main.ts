@@ -242,7 +242,6 @@ function mouseClick(e: MouseEvent) {
 function mouseMove(e: MouseEvent) {
     mouseX = e.offsetX
     mouseY = e.offsetY
-    console.log(mouseX + ", " + mouseY)
     if (canvasElement) iconPanel.processMouseMove(mouseX, mouseY, canvasElement)
 }
 function resize() {

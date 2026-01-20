@@ -20,7 +20,15 @@ export declare enum ReflectionObjectType {
 }
 export declare enum HouseObjectType {
     Telly = 0,
-    Sofa = 1
+    Sofa = 1,
+    Carpet = 2,
+    Kitchen = 3,
+    Bed = 4,
+    Toilet = 5,
+    Faucet = 6,
+    Bath = 7,
+    Stairs = 8,
+    Table = 9
 }
 declare class Line {
     x1: number;
@@ -71,12 +79,13 @@ declare class HouseObject {
     uv: Point;
     pos: Point;
     size: Point;
+    centered: boolean;
     colourImg: CanvasImageSource;
     loadedColour: boolean;
     greyImg: CanvasImageSource | null;
     loadedGrey: boolean;
-    constructor(_name: string, _colourPath: string, _type: HouseObjectType, houseUV: Point, _greyPath?: string);
-    updateHousePosition(newPos: Point): void;
+    constructor(_name: string, _colourPath: string, _type: HouseObjectType, houseUV: Point, _greyPath?: string, _cenetered?: boolean);
+    updateHousePosition(newPos: Point, roomSize: number): void;
 }
 export declare class Apartment {
     roomPlan: Array<Array<Rooms>>;
